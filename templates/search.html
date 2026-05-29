@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Pesquisa{% if q %}: {{ q }}{% endif %} — Great Books{% endblock %}
+{% block content %}
+<h1 class="page-title mb-4">Pesquisa</h1>
+
+<form action="/search" method="get" class="search-form mb-4">
+  <div class="input-group input-group-lg">
+    <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Termos de pesquisa…" autofocus>
+    <select class="form-select" name="type" style="max-width:160px">
+      <option value="all" {% if stype=='all' %}selected{% endif %}>Tudo</option>
+      <option value="text" {% if stype=='text' %}selected{% endif %}>Nos textos</option>
+      <option value="topic" {% if stype=='topic' %}selected{% endif %}>Tópicos</option>
+      <option value="author" {% if stype=='author' %}selected{% endif %}>Autores/Obras</option>
+    </select>
+    <button class="btn btn-primary" type="submit"><i class="bi bi-search me-1"></i>Pesquisar</button>
+  </div>
+</form>
+
+{% if q %}
+  <!-- Topics results -->
+  {% if results.topics %}
+  <section class="result-section mb-5">
+    <h3 class="result-section-title"><i class="bi bi-journal-bookmark me-2"></i>Tópicos ({{ results.topics | length }})</h3>
+    <div class="row g-3">
+      {% for t in results.topics %}
+      <div class="col-md-6">
+        <a href="/topic/{{ t.slug }}" class="result-card text-decoration-none d-block">
+          <h5 class="result-title">{{ t.name }}</h5>
+          <p class="result-snippet">{{ t.snippet | replace('\n',' ') | truncate(150) }}</p>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Author/work results -->
+  {% if results.authors %}
+  <section class="result-section mb-5">
+    <h3 class="result-section-title"><i class="bi bi-person-lines-fill me-2"></i>Autores e Obras ({{ results.authors | length }})</h3>
+    <div class="table-responsive">
+      <table class="table result-table">
+        <thead><tr><th>Autor</th><th>Obra</th><th>Tópico</th><th>Passagem</th></tr></thead>
+        <tbody>
+          {% for r in results.authors %}
+          <tr>
+            <td>{{ r.author }}</td>
+            <td>{{ r.work }}</td>
+            <td><a href="/topic/{{ r.topic_slug }}">{{ r.topic_name }}</a></td>
+            <td>
+              {% if r.page_from %}
+              <a href="/passage/{{ r.volume_num }}/{{ r.page_from }}" class="btn btn-sm btn-outline-secondary">
+                {{ r.short_title }}
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Passage results -->
+  {% if results.passages %}
+  <section class="result-section mb-5">
+    <h3 class="result-section-title"><i class="bi bi-file-text me-2"></i>Passagens nos textos ({{ results.passages | length }})</h3>
+    {% for p in results.passages %}
+    <div class="passage-result mb-3">
+      <div class="passage-result-meta">
+        <a href="/volume/{{ p.num }}" class="vol-badge">{{ p.short_title }}</a>
+        <a href="/passage/{{ p.num }}/{{ p.marker }}" class="marker-link">pág. {{ p.page_num }}{{ p.col }}</a>
+      </div>
+      <div class="passage-result-text">{{ p.snippet | replace('\n', ' ') | truncate(300) }}</div>
+      <a href="/passage/{{ p.num }}/{{ p.marker }}" class="btn btn-sm btn-outline-primary mt-2">Ver passagem completa</a>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if not results.topics and not results.authors and not results.passages %}
+  <div class="alert alert-light">
+    <i class="bi bi-info-circle me-2"></i>Nenhum resultado para <strong>{{ q }}</strong>.
+  </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

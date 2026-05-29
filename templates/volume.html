@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ vol.title }} — Great Books{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ vol.title }}</h1>
+<p class="text-muted mb-4">{{ total }} passagens indexadas</p>
+
+<div class="row g-2 mb-4">
+  {% for p in passages %}
+  <div class="col-6 col-md-3 col-lg-2">
+    <a href="/passage/{{ vol.num }}/{{ p.marker }}" class="passage-thumb">
+      <span class="thumb-marker">{{ p.marker }}</span>
+      <span class="thumb-snippet">{{ p.snippet | replace('\n',' ') | truncate(60) }}</span>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% if total > 50 %}
+<p class="text-muted small">A mostrar as primeiras 50 de {{ total }} passagens.
+  Use a pesquisa para encontrar passagens específicas.</p>
+{% endif %}
+
+<hr>
+<h5 class="mt-4 mb-3">Outros volumes</h5>
+<div class="d-flex flex-wrap gap-2">
+  {% for v in all_vols %}
+  <a href="/volume/{{ v.num }}" class="btn btn-sm {% if v.num == vol.num %}btn-dark{% else %}btn-outline-secondary{% endif %}">
+    {{ v.num }}. {{ v.short_title }}
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

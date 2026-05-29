@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Great Books of the Western World — Syntopicon{% endblock %}
+{% block content %}
+<div class="hero-section">
+  <h1 class="hero-title">Great Books of the Western World</h1>
+  <p class="hero-subtitle">
+    102 grandes ideias da tradição ocidental · 54 volumes · Syntopicon de Mortimer J. Adler
+  </p>
+</div>
+
+{% for letter, topics in groups.items() | sort %}
+<div class="topic-group mb-4">
+  <h2 class="group-letter">{{ letter }}</h2>
+  <div class="row g-3">
+    {% for t in topics %}
+    <div class="col-sm-6 col-md-4 col-lg-3">
+      <a href="/topic/{{ t.slug }}" class="topic-card text-decoration-none">
+        <div class="topic-card-inner">
+          <h3 class="topic-name">{{ t.name }}</h3>
+          {% if t.intro_text %}
+          <p class="topic-snippet">{{ t.intro_text | replace('\n',' ') | truncate(100) }}</p>
+          {% endif %}
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

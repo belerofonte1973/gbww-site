@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ topic.name }} — Great Books{% endblock %}
+{% block content %}
+<div class="topic-header mb-4">
+  <h1 class="topic-title">{{ topic.name }}</h1>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs topic-tabs mb-4" id="topicTabs">
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#intro">Introdução</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#refs">
+      Referências
+      {% if by_author %}<span class="badge bg-secondary ms-1">{{ by_author | length }}</span>{% endif %}
+    </a>
+  </li>
+  {% if subtopics %}
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#outline">Índice</a>
+  </li>
+  {% endif %}
+  {% if xrefs %}
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#xrefs">
+      Referências Cruzadas
+      <span class="badge bg-secondary ms-1">{{ xrefs | length }}</span>
+    </a>
+  </li>
+  {% endif %}
+</ul>
+
+<div class="tab-content">
+  <!-- Introduction -->
+  <div class="tab-pane fade show active" id="intro">
+    <div class="intro-text">
+      {% if topic.intro_text %}
+        {% for para in topic.intro_text.split('\n\n') %}
+          {% set p = para.strip() %}
+          {% if p %}
+            <p>{{ p | replace('\n', ' ') }}</p>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        <p class="text-muted">Introdução não disponível.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- References -->
+  <div class="tab-pane fade" id="refs">
+    {% if by_author %}
+      {% for author, author_refs in by_author.items() | sort %}
+      <div class="author-block mb-4">
+        <h4 class="author-name">{{ author }}</h4>
+        <div class="ref-list">
+          {% for r in author_refs %}
+          <div class="ref-entry">
+            <div class="ref-work">
+              {% if r.page_from %}
+                <a href="/passage/{{ r.volume_num }}/{{ r.page_from }}" class="ref-link">
+                  {{ r.work if r.work else '(obra)' }}
+                  {% if r.location %}<span class="ref-location">, {{ r.location }}</span>{% endif %}
+                </a>
+              {% else %}
+                <span class="ref-work-nolink">
+                  {{ r.work if r.work else '(obra)' }}
+                  {% if r.location %}<span class="ref-location">, {{ r.location }}</span>{% endif %}
+                </span>
+              {% endif %}
+              <span class="ref-volume text-muted small ms-2">({{ r.vol_title or 'Vol. '~r.volume_num }})</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="text-muted">Nenhuma referência indexada para este tópico.</p>
+    {% endif %}
+  </div>
+
+  <!-- Outline / Subtopics -->
+  {% if subtopics %}
+  <div class="tab-pane fade" id="outline">
+    <div class="outline-text">
+      {% for st in subtopics %}
+      <div class="subtopic-entry {% if st.code | length <= 2 %}subtopic-main{% else %}subtopic-sub{% endif %}">
+        <span class="subtopic-code">{{ st.code }}.</span>
+        <span class="subtopic-desc">{{ st.description }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Cross-references -->
+  {% if xrefs %}
+  <div class="tab-pane fade" id="xrefs">
+    <div class="xref-grid">
+      {% for x in xrefs %}
+      <a href="/topic/{{ x.slug }}" class="xref-chip">{{ x.name }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

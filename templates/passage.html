@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ vol.short_title }} — {{ passage.marker }} — Great Books{% endblock %}
+{% block content %}
+<div class="passage-header mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/volume/{{ vol.num }}">{{ vol.short_title }}</a></li>
+      <li class="breadcrumb-item active">Pág. {{ passage.page_num }}{{ passage.col }}</li>
+    </ol>
+  </nav>
+  <h1 class="passage-vol-title">{{ vol.title }}</h1>
+</div>
+
+<!-- Navigation -->
+<div class="passage-nav d-flex justify-content-between mb-4">
+  {% if prev_marker %}
+  <a href="/passage/{{ vol.num }}/{{ prev_marker }}" class="btn btn-nav">
+    <i class="bi bi-chevron-left"></i> Anterior
+  </a>
+  {% else %}
+  <span></span>
+  {% endif %}
+  <span class="passage-marker-badge">{{ passage.marker }}</span>
+  {% if next_marker %}
+  <a href="/passage/{{ vol.num }}/{{ next_marker }}" class="btn btn-nav">
+    Próximo <i class="bi bi-chevron-right"></i>
+  </a>
+  {% endif %}
+</div>
+
+<!-- Passage text -->
+<div class="passage-text-block">
+  {% for para in passage.text.split('\n\n') %}
+    {% set p = para.strip() %}
+    {% if p and p != '[página ilustrada]' %}
+      <p>{{ p | replace('\n', ' ') }}</p>
+    {% elif p == '[página ilustrada]' %}
+      <p class="text-muted fst-italic">[página ilustrada]</p>
+    {% endif %}
+  {% endfor %}
+</div>
+
+<!-- Topics that reference this passage -->
+{% if ref_topics %}
+<div class="ref-topics-block mt-4">
+  <h5 class="ref-topics-title">Tópicos do Syntopicon que citam esta passagem</h5>
+  <div class="xref-grid">
+    {% for t in ref_topics %}
+    <a href="/topic/{{ t.slug }}" class="xref-chip">{{ t.name }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Translation placeholder -->
+<div class="translation-block mt-4">
+  <div class="translation-header d-flex align-items-center">
+    <h5 class="mb-0 me-3">Tradução em Português</h5>
+    <span class="badge bg-light text-muted border">Em breve</span>
+  </div>
+  <div class="translation-placeholder mt-2 text-muted fst-italic">
+    As traduções das obras para o português poderão ser adicionadas aqui.
+  </div>
+</div>
+
+<!-- Bottom navigation -->
+<div class="passage-nav d-flex justify-content-between mt-4">
+  {% if prev_marker %}
+  <a href="/passage/{{ vol.num }}/{{ prev_marker }}" class="btn btn-nav">
+    <i class="bi bi-chevron-left"></i> Anterior
+  </a>
+  {% else %}
+  <span></span>
+  {% endif %}
+  {% if next_marker %}
+  <a href="/passage/{{ vol.num }}/{{ next_marker }}" class="btn btn-nav">
+    Próximo <i class="bi bi-chevron-right"></i>
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
