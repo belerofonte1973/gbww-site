@@ -86,6 +86,22 @@ body { background: var(--cream); color: var(--text); font-family: Georgia, 'Time
 .subtopic-sub { padding-left: 24px; }
 .subtopic-code { color: var(--navy); min-width: 32px; }
 .subtopic-desc { color: var(--text); }
+
+/* Combined outline + references view */
+.outline-refs { max-width: 820px; }
+.subtopic-block { margin-bottom: 14px; }
+.subtopic-heading { font-family: sans-serif; padding: 6px 0 4px;
+  border-bottom: 1px solid var(--border); }
+.subtopic-heading .subtopic-code { font-weight: 700; margin-right: 6px; }
+.subtopic-depth-0 > .subtopic-heading { font-size: 1rem; font-weight: 700; color: var(--navy); }
+.subtopic-depth-1 { margin-left: 22px; }
+.subtopic-depth-1 > .subtopic-heading { font-size: .92rem; font-weight: 600; }
+.subtopic-depth-2 { margin-left: 44px; }
+.subtopic-depth-2 > .subtopic-heading { font-size: .88rem; font-weight: 500; color: var(--text); }
+.subtopic-block .ref-list { padding: 8px 0 4px 14px; border-left: 2px solid var(--border); margin: 6px 0 0 4px; }
+.ref-author { font-weight: 700; color: var(--navy); font-variant: small-caps; margin-right: 4px; }
+.unassigned-block { margin-top: 28px; }
+.unassigned-block > .subtopic-heading { border-bottom: 1px dashed var(--border); }
 .xref-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .xref-chip { background: var(--cream2); border: 1px solid var(--border); border-radius: 20px;
   padding: 4px 14px; font-size: .83rem; color: var(--navy); text-decoration: none;

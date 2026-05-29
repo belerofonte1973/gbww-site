@@ -252,6 +252,119 @@ def parse_page_range(raw):
         return m.group(1), m.group(1)
     return raw, raw
 
+def _ref_region(body):
+    """Return the cleaned references region of a chapter body, or None.
+
+    Picks the "REFERENCES" heading that starts the real reference list — not
+    the one inside "CROSS-REFERENCES", and not a de-prefixed cross-reference
+    ("REFERENCES For: ...", which OCR sometimes leaves headingless). If no
+    usable heading exists, falls back to the first "<vol> <Author>:" entry.
+    """
+    occ = list(re.finditer(r'(?<![-\w])REFERENCES\b', body))
+
+    def is_real(m):
+        # A real REFERENCES heading is followed (within a short window) by the
+        # boilerplate preamble or by a "<vol> <Author>:" entry. A de-prefixed
+        # CROSS-REFERENCES reads "REFERENCES For: ..." or "REFERENCES 2c(3);
+        # Infinity 4c; Man 3a; ..." (other chapters + codes, no author colon).
+        tail = body[m.end():m.end() + 200]
+        if re.match(r'\s+For\b', tail):
+            return False
+        return bool(re.search(r'To find the passages', tail) or
+                    re.search(r'(?<!\d)\d{1,2}\s+[A-Z][a-zA-Z]+:', tail))
+
+    start = next((m.start() for m in occ if is_real(m)), None)
+    if start is None:
+        em = re.search(r'(?<!\d)\d{1,2}\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?:\s', body)
+        start = em.start() if em else None
+    if start is None:
+        return None
+    rb = body[start:]
+    # Close the list at the earliest following section. CROSS-REFERENCES is
+    # sometimes missing/garbled, so also bound on other markers and on any
+    # *other* REFERENCES token after the start (those are de-prefixed
+    # cross-reference lists, never the real reference list).
+    cut = len(rb)
+    for pat in (r'CROSS-REFERENCES', r'ADDITIONAL READING', r'\bINTRODUCTION\b',
+                r'OUTLINE OF TOPICS'):
+        mm = re.search(pat, rb[1:])
+        if mm:
+            cut = min(cut, mm.start() + 1)
+    for m in occ:
+        rel = m.start() - start
+        if rel > 0:
+            cut = min(cut, rel)
+    rb = rb[:cut]
+    # Skip the standard boilerplate preamble ("To find the passages cited ...
+    # consult the Preface."); its worked examples and Bible note parse as fakes.
+    pref = re.search(r'consult\s+the\s+Pref\w*\s*\.?', rb, re.I)
+    if pref:
+        rb = rb[pref.end():]
+    return re.sub(r'\s+', ' ', rb)
+
+
+def _desc_anchor_words(desc):
+    """Distinctive words from a subtopic description, for OCR-tolerant matching."""
+    return [w for w in re.findall(r'[A-Za-z]{4,}', desc or '')][:3]
+
+
+def _find_subtopic_heading(rb, pos, code, desc):
+    """Find a subtopic heading for `code` in rb at/after `pos`.
+
+    Subtopic headings in the references look like "2a. <description> <vol>
+    <Author>: ...". We try, in order of confidence:
+      1. code + separator + a distinctive description word (disambiguates from
+         volume numbers like "2 Augustine:");
+      2. code + period + prose that is not an "Author:" entry.
+    Returns (heading_start, heading_end) or None.
+    """
+    esc = re.escape(code)
+    words = _desc_anchor_words(desc)
+    if words:
+        anchor = '|'.join(re.escape(w) for w in words)
+        pat = re.compile(
+            r'(?<![0-9A-Za-z(])' + esc + r'\s*[.,)]?\s+(?:\S+\s+){0,3}?(?:' + anchor + r')',
+            re.I)
+        m = pat.search(rb, pos)
+        if m:
+            return (m.start(), m.start() + len(code) + 1)
+    # Fallback: code + period + prose that is not a "<vol> <Author>:" entry.
+    pat = re.compile(
+        r'(?<![0-9A-Za-z(])' + esc + r'\.\s+(?![A-Z][a-zA-Z]+:)[A-Za-z]')
+    m = pat.search(rb, pos)
+    if m:
+        return (m.start(), m.start() + len(code) + 1)
+    return None
+
+
+def _segment_by_subtopic(rb, subs):
+    """Split a references region into (subtopic_id_or_None, text) spans.
+
+    `subs` is the topic's subtopics as (id, code, description) in outline order.
+    References appear in the same order as the outline, so we locate each code's
+    heading sequentially. Text before the first heading (and any unmatched tail)
+    is attributed to subtopic_id None.
+    """
+    if not subs:
+        return [(None, rb)], 0
+    bounds = []  # (heading_start, heading_end, sub_id)
+    pos = 0
+    for sub_id, code, desc in subs:
+        hit = _find_subtopic_heading(rb, pos, code, desc)
+        if hit:
+            bounds.append((hit[0], hit[1], sub_id))
+            pos = hit[1]
+    if not bounds:
+        return [(None, rb)], 0
+    segments = []
+    if bounds[0][0] > 0:
+        segments.append((None, rb[:bounds[0][0]]))
+    for idx, (hs, he, sub_id) in enumerate(bounds):
+        end = bounds[idx + 1][0] if idx + 1 < len(bounds) else len(rb)
+        segments.append((sub_id, rb[he:end]))
+    return segments, len(bounds)
+
+
 def parse_mapa_refs(cur):
     print("Parseando referências dos ficheiros Mapa...")
 
@@ -292,6 +405,7 @@ def parse_mapa_refs(cur):
         return topic_map.get(slugify(title))
 
     total_refs = 0
+    subs_found = subs_total = 0
 
     for mapa_file in sorted(MAPA.glob('*.txt')):
         print(f"  {mapa_file.name[:60]}...")
@@ -343,117 +457,96 @@ def parse_mapa_refs(cur):
             if not topic_id:
                 continue
 
-            # Locate where the references list starts. Normally the "REFERENCES"
-            # heading marks it (not the one inside "CROSS-REFERENCES", hence the
-            # lookbehind), but OCR drops that heading in some chapters — there
-            # the list is simply the first run of "<vol> <Author>:" entries, a
-            # format the introduction and outline never use.
-            refm = re.search(r'(?<![-\w])REFERENCES\b', body)
-            if refm:
-                start = refm.start()
-            else:
-                em = re.search(r'(?<!\d)\d{1,2}\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?:\s', body)
-                start = em.start() if em else None
-            if start is None:
+            ref_body = _ref_region(body)
+            if not ref_body:
                 continue
-            ref_body = body[start:]
-            # Close the references list at the earliest following section, so we
-            # never absorb cross-references, additional-reading lists, or the
-            # next chapter's introduction/outline (CROSS-REFERENCES is sometimes
-            # missing/garbled, so we bound on several markers).
-            cut = len(ref_body)
-            for marker in ('CROSS-REFERENCES', 'ADDITIONAL READING',
-                           'INTRODUCTION', 'OUTLINE OF TOPICS'):
-                p = ref_body.find(marker, 1)
-                if p != -1:
-                    cut = min(cut, p)
-            ref_body = ref_body[:cut]
-            # Skip the standard boilerplate preamble that follows REFERENCES
-            # ("To find the passages cited ... consult the Preface."); its
-            # worked examples (4 Homer, 7 Plato, 53 James) and the Bible-style
-            # note would otherwise parse as fake references.
-            pref = re.search(r'consult\s+the\s+Pref\w*\s*\.?', ref_body, re.I)
-            if pref:
-                ref_body = ref_body[pref.end():]
 
-            # Normalize the ref body
-            ref_body = re.sub(r'\s+', ' ', ref_body)
+            # Attribute each reference to the outline subtopic it sits under, as
+            # in the printed Syntopicon. References follow outline order, so we
+            # segment the region by locating each subtopic's heading in sequence.
+            subs = cur.execute(
+                "SELECT id, code, description FROM subtopics "
+                "WHERE topic_id=? ORDER BY sort_order", (topic_id,)
+            ).fetchall()
+            segments, n_found = _segment_by_subtopic(ref_body, subs)
+            subs_found += n_found
+            subs_total += len(subs)
 
-            # Extract reference entries: "N Author: ..."
-            # Split on pattern that starts a new ref entry
+            # Extract reference entries ("N Author: ...") within each segment.
             entry_pat = re.compile(r'(?<!\d)(\d{1,2})\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?):\s+')
-            parts = entry_pat.split(ref_body)
+            for sub_id, seg_text in segments:
+                parts = entry_pat.split(seg_text)
+                # parts = [pre, vol, author, text, vol, author, text, ...]
+                j = 1
+                while j + 2 < len(parts):
+                    vol_num = int(parts[j])
+                    author  = parts[j+1].strip()
+                    entry   = parts[j+2].strip() if j+2 < len(parts) else ''
+                    j += 3
 
-            # parts = [pre, vol, author, text, vol, author, text, ...]
-            j = 1
-            while j + 2 < len(parts):
-                vol_num = int(parts[j])
-                author  = parts[j+1].strip()
-                entry   = parts[j+2].strip() if j+2 < len(parts) else ''
-                # Stop at next entry start
-                j += 3
-
-                if vol_num < 1 or vol_num > 54:
-                    continue
-
-                # Defensive: never let one entry run into prose or another
-                # section if a boundary marker slipped through above.
-                entry = re.split(
-                    r'\b(?:INTRODUCTION|OUTLINE OF TOPICS|CROSS-REFERENCES|ADDITIONAL READING)\b',
-                    entry)[0]
-                # Split works by " / "
-                works_raw = re.split(r'\s*/\s*', entry)
-                for work_raw in works_raw:
-                    work_raw = work_raw.strip()
-                    if not work_raw:
-                        continue
-                    # Extract work title: everything before the first page reference
-                    # Page refs look like digits followed by a-d
-                    page_pos = re.search(r'\b\d+[a-d]\b', work_raw)
-                    if page_pos:
-                        work_title_raw = work_raw[:page_pos.start()].strip().rstrip(',').strip()
-                        pages_raw = work_raw[page_pos.start():]
-                    else:
-                        work_title_raw = work_raw
-                        pages_raw = ''
-
-                    # Clean work title: separate location (bk, ch, sect, part) from title
-                    loc_m = re.search(r',?\s*(bk|ch|sect|part|q|tr|vol)\s', work_title_raw, re.I)
-                    if loc_m:
-                        work_title = work_title_raw[:loc_m.start()].strip().rstrip(',')
-                        location   = work_title_raw[loc_m.start():].strip().lstrip(',').strip()
-                    else:
-                        work_title = work_title_raw
-                        location   = ''
-
-                    # A real work title is short; a 100+ char "title" means the
-                    # page-ref search found nothing early, i.e. this is prose
-                    # that slipped through — drop it rather than store a paragraph.
-                    if len(work_title) > 100:
+                    if vol_num < 1 or vol_num > 54:
                         continue
 
-                    # Get first page range
-                    first_range = re.search(r'(\d+[a-d])(?:-(\d+)?([a-d]))?', pages_raw)
-                    if first_range:
-                        p_from = first_range.group(1)
-                        if first_range.group(2) and first_range.group(3):
-                            p_to = first_range.group(2) + first_range.group(3)
-                        elif first_range.group(3):
-                            p_to = re.match(r'\d+', p_from).group() + first_range.group(3)
+                    # Defensive: never let one entry run into prose or another
+                    # section if a boundary marker slipped through above.
+                    entry = re.split(
+                        r'\b(?:INTRODUCTION|OUTLINE OF TOPICS|CROSS-REFERENCES|ADDITIONAL READING)\b',
+                        entry)[0]
+                    # Split works by " / "
+                    works_raw = re.split(r'\s*/\s*', entry)
+                    for work_raw in works_raw:
+                        work_raw = work_raw.strip()
+                        if not work_raw:
+                            continue
+                        # Work title: everything before the first page reference
+                        # (page refs look like digits followed by a-d).
+                        page_pos = re.search(r'\b\d+[a-d]\b', work_raw)
+                        if page_pos:
+                            work_title_raw = work_raw[:page_pos.start()].strip().rstrip(',').strip()
+                            pages_raw = work_raw[page_pos.start():]
                         else:
-                            p_to = p_from
-                    else:
-                        p_from = p_to = ''
+                            work_title_raw = work_raw
+                            pages_raw = ''
 
-                    cur.execute(
-                        "INSERT OR IGNORE INTO refs(topic_id,volume_num,author,work,location,page_from,page_to,raw_text) "
-                        "VALUES(?,?,?,?,?,?,?,?)",
-                        (topic_id, vol_num, author, work_title, location,
-                         p_from, p_to, work_raw[:300])
-                    )
-                    total_refs += 1
+                        # Separate location (bk, ch, sect, part) from the title.
+                        loc_m = re.search(r',?\s*(bk|ch|sect|part|q|tr|vol)\s', work_title_raw, re.I)
+                        if loc_m:
+                            work_title = work_title_raw[:loc_m.start()].strip().rstrip(',')
+                            location   = work_title_raw[loc_m.start():].strip().lstrip(',').strip()
+                        else:
+                            work_title = work_title_raw
+                            location   = ''
 
+                        # A real work title is short; a 100+ char "title" means
+                        # the page-ref search found nothing early, i.e. prose
+                        # that slipped through — drop it.
+                        if len(work_title) > 100:
+                            continue
+
+                        # First page range.
+                        first_range = re.search(r'(\d+[a-d])(?:-(\d+)?([a-d]))?', pages_raw)
+                        if first_range:
+                            p_from = first_range.group(1)
+                            if first_range.group(2) and first_range.group(3):
+                                p_to = first_range.group(2) + first_range.group(3)
+                            elif first_range.group(3):
+                                p_to = re.match(r'\d+', p_from).group() + first_range.group(3)
+                            else:
+                                p_to = p_from
+                        else:
+                            p_from = p_to = ''
+
+                        cur.execute(
+                            "INSERT OR IGNORE INTO refs(topic_id,subtopic_id,volume_num,author,work,location,page_from,page_to,raw_text) "
+                            "VALUES(?,?,?,?,?,?,?,?,?)",
+                            (topic_id, sub_id, vol_num, author, work_title, location,
+                             p_from, p_to, work_raw[:300])
+                        )
+                        total_refs += 1
+
+    pct = 100 * subs_found // subs_total if subs_total else 0
     print(f"  Total: {total_refs} referências indexadas")
+    print(f"  Subtópicos detetados nas referências: {subs_found}/{subs_total} ({pct}%)")
 
 # ── main ──────────────────────────────────────────────────────────────────────
 

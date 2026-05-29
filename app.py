@@ -80,6 +80,14 @@ def index():
         groups.setdefault(letter, []).append(t)
     return render_template('index.html', groups=groups, all_topics=get_all_topics())
 
+def _sub_depth(code):
+    """Indentation level of a subtopic code: 1 → 0, 1a → 1, 1a(2) → 2."""
+    if re.match(r'^\d+$', code or ''):
+        return 0
+    if re.match(r'^\d+[a-z]$', code or ''):
+        return 1
+    return 2
+
 @app.route('/topic/<slug>')
 def topic(slug):
     db = get_db()
@@ -87,24 +95,32 @@ def topic(slug):
     if not t:
         abort(404)
 
-    # Subtopics
+    # Subtopics (outline order)
     subtopics = db.execute(
         "SELECT * FROM subtopics WHERE topic_id=? ORDER BY sort_order", (t['id'],)
     ).fetchall()
 
-    # References grouped by author
+    # References, attributed to the outline subtopic they sit under (as in the
+    # printed Syntopicon). Ordered by volume within each subtopic.
     refs = db.execute("""
         SELECT r.*, v.short_title as vol_title
         FROM refs r
         LEFT JOIN volumes v ON v.num = r.volume_num
         WHERE r.topic_id=?
-        ORDER BY r.author, r.work
+        ORDER BY r.volume_num, r.author, r.work
     """, (t['id'],)).fetchall()
 
-    by_author = {}
+    refs_by_sub = {}
     for r in refs:
-        key = r['author'] or 'Unknown'
-        by_author.setdefault(key, []).append(r)
+        refs_by_sub.setdefault(r['subtopic_id'], []).append(r)
+
+    # Interleave outline + references in reading order.
+    outline = [
+        {'code': st['code'], 'description': st['description'],
+         'depth': _sub_depth(st['code']), 'refs': refs_by_sub.get(st['id'], [])}
+        for st in subtopics
+    ]
+    unassigned = refs_by_sub.get(None, [])
 
     # Cross-references
     xrefs = db.execute("""
@@ -115,8 +131,8 @@ def topic(slug):
     """, (t['id'],)).fetchall()
 
     return render_template('topic.html',
-        topic=t, subtopics=subtopics,
-        by_author=by_author, xrefs=xrefs,
+        topic=t, outline=outline, unassigned=unassigned,
+        ref_count=len(refs), xrefs=xrefs,
         all_topics=get_all_topics()
     )
 

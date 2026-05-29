@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 {% block title %}{{ topic.name }} — Great Books{% endblock %}
 {% block content %}
+{% macro ref_line(r) %}
+  <div class="ref-entry">
+    <span class="ref-author">{{ r.author }}</span>
+    {% if r.page_from %}
+      <a href="/passage/{{ r.volume_num }}/{{ r.page_from }}" class="ref-link">{{ r.work or '(obra)' }}{% if r.location %}<span class="ref-location">, {{ r.location }}</span>{% endif %}</a>
+    {% else %}
+      <span class="ref-work-nolink">{{ r.work or '(obra)' }}{% if r.location %}<span class="ref-location">, {{ r.location }}</span>{% endif %}</span>
+    {% endif %}
+    <span class="ref-volume text-muted small ms-1">({{ r.vol_title or 'Vol. ' ~ r.volume_num }})</span>
+  </div>
+{% endmacro %}
+
 <div class="topic-header mb-4">
   <h1 class="topic-title">{{ topic.name }}</h1>
 </div>
@@ -11,16 +23,11 @@
     <a class="nav-link active" data-bs-toggle="tab" href="#intro">Introdução</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" data-bs-toggle="tab" href="#refs">
-      Referências
-      {% if by_author %}<span class="badge bg-secondary ms-1">{{ by_author | length }}</span>{% endif %}
+    <a class="nav-link" data-bs-toggle="tab" href="#outline-refs">
+      Índice e Referências
+      {% if ref_count %}<span class="badge bg-secondary ms-1">{{ ref_count }}</span>{% endif %}
     </a>
   </li>
-  {% if subtopics %}
-  <li class="nav-item">
-    <a class="nav-link" data-bs-toggle="tab" href="#outline">Índice</a>
-  </li>
-  {% endif %}
   {% if xrefs %}
   <li class="nav-item">
     <a class="nav-link" data-bs-toggle="tab" href="#xrefs">
@@ -48,52 +55,41 @@
     </div>
   </div>
 
-  <!-- References -->
-  <div class="tab-pane fade" id="refs">
-    {% if by_author %}
-      {% for author, author_refs in by_author.items() | sort %}
-      <div class="author-block mb-4">
-        <h4 class="author-name">{{ author }}</h4>
-        <div class="ref-list">
-          {% for r in author_refs %}
-          <div class="ref-entry">
-            <div class="ref-work">
-              {% if r.page_from %}
-                <a href="/passage/{{ r.volume_num }}/{{ r.page_from }}" class="ref-link">
-                  {{ r.work if r.work else '(obra)' }}
-                  {% if r.location %}<span class="ref-location">, {{ r.location }}</span>{% endif %}
-                </a>
-              {% else %}
-                <span class="ref-work-nolink">
-                  {{ r.work if r.work else '(obra)' }}
-                  {% if r.location %}<span class="ref-location">, {{ r.location }}</span>{% endif %}
-                </span>
-              {% endif %}
-              <span class="ref-volume text-muted small ms-2">({{ r.vol_title or 'Vol. '~r.volume_num }})</span>
-            </div>
+  <!-- Outline interleaved with references (as printed in the Syntopicon) -->
+  <div class="tab-pane fade" id="outline-refs">
+    {% if outline %}
+      <div class="outline-refs">
+      {% for item in outline %}
+        <div class="subtopic-block subtopic-depth-{{ item.depth }}">
+          <div class="subtopic-heading">
+            <span class="subtopic-code">{{ item.code }}.</span>
+            <span class="subtopic-desc">{{ item.description }}</span>
           </div>
-          {% endfor %}
+          {% if item.refs %}
+          <div class="ref-list">
+            {% for r in item.refs %}{{ ref_line(r) }}{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if unassigned %}
+      <div class="subtopic-block unassigned-block">
+        <div class="subtopic-heading">
+          <span class="subtopic-desc text-muted">Outras referências</span>
+        </div>
+        <div class="ref-list">
+          {% for r in unassigned %}{{ ref_line(r) }}{% endfor %}
         </div>
       </div>
-      {% endfor %}
-    {% else %}
+    {% endif %}
+
+    {% if not outline and not unassigned %}
       <p class="text-muted">Nenhuma referência indexada para este tópico.</p>
     {% endif %}
   </div>
-
-  <!-- Outline / Subtopics -->
-  {% if subtopics %}
-  <div class="tab-pane fade" id="outline">
-    <div class="outline-text">
-      {% for st in subtopics %}
-      <div class="subtopic-entry {% if st.code | length <= 2 %}subtopic-main{% else %}subtopic-sub{% endif %}">
-        <span class="subtopic-code">{{ st.code }}.</span>
-        <span class="subtopic-desc">{{ st.description }}</span>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
 
   <!-- Cross-references -->
   {% if xrefs %}
