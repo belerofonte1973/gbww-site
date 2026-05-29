@@ -263,15 +263,21 @@ def _ref_region(body):
     occ = list(re.finditer(r'(?<![-\w])REFERENCES\b', body))
 
     def is_real(m):
-        # A real REFERENCES heading is followed (within a short window) by the
-        # boilerplate preamble or by a "<vol> <Author>:" entry. A de-prefixed
-        # CROSS-REFERENCES reads "REFERENCES For: ..." or "REFERENCES 2c(3);
-        # Infinity 4c; Man 3a; ..." (other chapters + codes, no author colon).
+        # A real REFERENCES heading is followed by the boilerplate preamble or
+        # by a "<vol> <Author>:" entry. A de-prefixed CROSS-REFERENCES reads
+        # "REFERENCES For: ..." or "REFERENCES 2c(3); Infinity 4c; Man 3a; ..."
+        # (other chapters + codes): it puts a ';' before any author entry,
+        # whereas a real reference list has the author colon first.
         tail = body[m.end():m.end() + 200]
         if re.match(r'\s+For\b', tail):
             return False
-        return bool(re.search(r'To find the passages', tail) or
-                    re.search(r'(?<!\d)\d{1,2}\s+[A-Z][a-zA-Z]+:', tail))
+        if re.search(r'To find the passages', tail):
+            return True
+        va = re.search(r'(?<!\d)\d{1,2}\s+[A-Z][a-zA-Z]+:', tail)
+        if not va:
+            return False
+        semi = tail.find(';')
+        return semi == -1 or semi > va.start()
 
     start = next((m.start() for m in occ if is_real(m)), None)
     if start is None:
@@ -424,39 +430,52 @@ def parse_mapa_refs(cur):
         # Split by chapter headings: "Chapter N: TOPICNAME" (possibly with extra text)
         chap_split = re.split(r'(Chapter\s+\d+\s*:\s*[A-Z][A-Z &]+)', raw)
 
-        # Merge chunks belonging to the same chapter (same chapter num)
-        chapters = {}  # canonical_name → combined body
-        i = 1
-        while i < len(chap_split):
-            heading = chap_split[i].strip()
-            body    = chap_split[i+1] if i+1 < len(chap_split) else ''
-            m = re.match(r'Chapter\s+\d+\s*:\s*([A-Z][A-Z &]+)', heading)
-            if m:
-                raw_name = m.group(1).strip()
-                # On a running-header page the section keyword that follows the
-                # chapter name can be swallowed into the split delimiter (e.g.
-                # "JUSTICE REFERENCES"), which would file that body under a bogus
-                # key and lose it. Peel the keyword back off and return it to the
-                # body so the section search below still finds it.
-                secm = re.search(r'\b(REFERENCES|INTRODUCTION|OUTLINE|CROSS|ADDITIONAL)\b', raw_name)
-                if secm:
-                    body = secm.group(1) + ' ' + body
-                    raw_name = raw_name[:secm.start()].strip()
-                # Normalize chapter name: take first word-run, drop trailing junk
-                canonical = re.match(r'([A-Z][A-Z &]+?)(?:\s+[0-9a-z].*)?$', raw_name)
-                key = canonical.group(1).strip() if canonical else raw_name
-                key = re.sub(r'\s+[A-Z]$', '', key).strip()
-                if key:
-                    # Append body (multiple pages = multiple splits per chapter)
-                    chapters[key] = chapters.get(key, '') + body
-            i += 2
+        def heading_topic(heading):
+            """(chapter_number, topic_id_by_name, swallowed_section_word).
 
-        for chap_name, body in chapters.items():
-            # Match to topic
-            topic_id = find_topic(chap_name)
-            if not topic_id:
+            Resolves a running-header to its topic via the (cleaned) chapter
+            name, and reports any section keyword glued into the heading that
+            must be returned to the body (e.g. "JUSTICE REFERENCES").
+            """
+            m = re.match(r'Chapter\s+(\d+)\s*:\s*([A-Z][A-Z &]+)', heading)
+            if not m:
+                return None, None, None
+            num = int(m.group(1))
+            raw_name = m.group(2).strip()
+            sec = None
+            secm = re.search(r'\b(REFERENCES|INTRODUCTION|OUTLINE|CROSS|ADDITIONAL)\b', raw_name)
+            if secm:
+                sec = secm.group(1)
+                raw_name = raw_name[:secm.start()].strip()
+            cano = re.match(r'([A-Z][A-Z &]+?)(?:\s+[0-9a-z].*)?$', raw_name)
+            key = cano.group(1).strip() if cano else raw_name
+            key = re.sub(r'\s+[A-Z]$', '', key).strip()
+            return num, (find_topic(key) if key else None), sec
+
+        # Pass 1: map chapter number → topic id from headers whose name resolves
+        # cleanly (most do). OCR garbles some names ("Chapter 34: HIS'I'ORY")
+        # but rarely the number, so the number lets us recover those fragments.
+        num2tid = {}
+        for i in range(1, len(chap_split), 2):
+            num, tid, _ = heading_topic(chap_split[i].strip())
+            if tid and num not in num2tid:
+                num2tid[num] = tid
+
+        # Pass 2: accumulate each chapter's body under its topic id, recovering
+        # garbled-name fragments via the chapter number.
+        chapters_by_tid = {}
+        for i in range(1, len(chap_split), 2):
+            body = chap_split[i + 1] if i + 1 < len(chap_split) else ''
+            num, tid, sec = heading_topic(chap_split[i].strip())
+            if num is None:
                 continue
+            if sec:
+                body = sec + ' ' + body
+            tid = tid or num2tid.get(num)
+            if tid:
+                chapters_by_tid[tid] = chapters_by_tid.get(tid, '') + body
 
+        for topic_id, body in chapters_by_tid.items():
             ref_body = _ref_region(body)
             if not ref_body:
                 continue
