@@ -5,8 +5,9 @@ from pathlib import Path
 
 BASE      = Path('/home/rodrigo/gbww')
 TXTS      = BASE / 'txts'
-SYNT      = BASE / 'syntopicon_v18'
+SYNT      = BASE / 'syntopicon_dli'
 MAPA      = BASE / 'Mapa de referências do Syntopicon'
+MAPA_DLI  = BASE / 'mapa_dli'
 DB_PATH   = Path('/home/rodrigo/gbww_site/gbww.db')
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -155,6 +156,8 @@ def parse_topics(cur):
 
         # Split sections
         outline_start = text.find('OUTLINE OF TOPICS')
+        # REFERENCES section (if present) ends the pure outline list
+        refs_start     = text.find('\nREFERENCES\n', outline_start) if outline_start != -1 else -1
         crossref_start = text.find('CROSS-REFERENCES')
         addread_start  = text.find('ADDITIONAL READINGS')
 
@@ -163,7 +166,9 @@ def parse_topics(cur):
             outline = ''
         else:
             intro   = text[:outline_start].strip()
-            end_of_outline = crossref_start if crossref_start != -1 else len(text)
+            # End of outline: whichever comes first — REFERENCES, CROSS-REFERENCES, or EOF
+            bounds = [b for b in [refs_start, crossref_start, addread_start] if b > outline_start]
+            end_of_outline = min(bounds) if bounds else len(text)
             outline = text[outline_start:end_of_outline].strip()
 
         if crossref_start != -1:
@@ -413,7 +418,24 @@ def parse_mapa_refs(cur):
     total_refs = 0
     subs_found = subs_total = 0
 
-    for mapa_file in sorted(MAPA.glob('*.txt')):
+    # Use mapa_dli (better OCR) first, then original Mapa as fallback.
+    # Build a single list of files, deduplicating by chapter coverage.
+    dli_chapters_covered = set()
+    mapa_files_to_process = []
+
+    if MAPA_DLI.exists():
+        for f in sorted(MAPA_DLI.glob('*.txt')):
+            mapa_files_to_process.append(f)
+            # Track ALL chapter numbers that appear in this DLI file
+            full_text = f.read_text(encoding='utf-8', errors='replace')
+            for m in re.finditer(r'Chapter\s+(\d+)\s*:', full_text):
+                dli_chapters_covered.add(int(m.group(1)))
+
+    # Always add original Mapa (it has all chapters in full format)
+    for f in sorted(MAPA.glob('*.txt')):
+        mapa_files_to_process.append(f)
+
+    for mapa_file in mapa_files_to_process:
         print(f"  {mapa_file.name[:60]}...")
         raw = mapa_file.read_text(encoding='utf-8', errors='replace')
         # Normalize spaces
@@ -463,11 +485,16 @@ def parse_mapa_refs(cur):
 
         # Pass 2: accumulate each chapter's body under its topic id, recovering
         # garbled-name fragments via the chapter number.
+        # Skip chapters already covered by mapa_dli when processing original Mapa.
+        is_dli_file = str(mapa_file).find('mapa_dli') != -1
         chapters_by_tid = {}
         for i in range(1, len(chap_split), 2):
             body = chap_split[i + 1] if i + 1 < len(chap_split) else ''
             num, tid, sec = heading_topic(chap_split[i].strip())
             if num is None:
+                continue
+            # If this is the original Mapa and the chapter was covered by DLI, skip it
+            if not is_dli_file and num in dli_chapters_covered:
                 continue
             if sec:
                 body = sec + ' ' + body
