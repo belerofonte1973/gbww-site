@@ -20,6 +20,7 @@
   const lang     = textDiv ? (textDiv.dataset.lang || 'grc') : 'grc';
   const isHebrew  = lang === 'heb';
   const isSumerian = lang === 'sux';
+  const isLatin   = lang === 'lat';
 
   let selectedToken = null;
   let currentLemma  = null;
@@ -42,7 +43,7 @@
     if (lemma !== currentLemma || strong !== currentStrong) {
       lsjEntry.style.display = 'none';
       lsjEntry.innerHTML = '';
-      if (btnLsj)     { btnLsj.disabled = false;    btnLsj.textContent = 'LSJ ↗'; }
+      if (btnLsj)     { btnLsj.disabled = false;    btnLsj.textContent = isLatin ? 'Lewis-Short ↗' : 'LSJ ↗'; }
       if (btnStrongs) { btnStrongs.disabled = false; btnStrongs.textContent = 'Strong\'s ↗'; }
       lexLoaded = false;
     }
@@ -65,6 +66,7 @@
     popupDesc.className   = 'popup-desc' + (isHebrew ? ' popup-desc--heb' : '');
 
     if (btnLsj)     btnLsj.style.display     = (!isHebrew && !isSumerian) ? 'inline-block' : 'none';
+    if (btnLsj && isLatin) btnLsj.textContent = 'Lewis-Short ↗';
     if (btnStrongs) btnStrongs.style.display  = isHebrew ? 'inline-block' : 'none';
 
     positionPopup(token);
@@ -101,7 +103,7 @@
     popup.style.left = left + 'px';
   }
 
-  // ── LSJ lookup (Greek) ────────────────────────────────────────────────────
+  // ── LSJ / Lewis-Short lookup ──────────────────────────────────────────────
 
   if (btnLsj) {
     btnLsj.addEventListener('click', function () {
@@ -109,23 +111,29 @@
         lsjEntry.style.display = lsjEntry.style.display === 'none' ? 'block' : 'none';
         return;
       }
-      if (!currentLemma) return;
+
+      const lookup = isLatin ? (selectedToken && selectedToken.dataset.word) : currentLemma;
+      if (!lookup) return;
+
+      const btnLabel = isLatin ? 'Lewis-Short ↗' : 'LSJ ↗';
+      const apiUrl   = isLatin ? '/api/lewis/' + encodeURIComponent(lookup)
+                               : '/api/lsj/'   + encodeURIComponent(lookup);
 
       btnLsj.disabled = true;
       btnLsj.textContent = 'A carregar…';
       lsjEntry.style.display = 'block';
       lsjEntry.innerHTML = '<em>A consultar Diogenes…</em>';
 
-      fetch('/api/lsj/' + encodeURIComponent(currentLemma))
+      fetch(apiUrl)
         .then(r => r.json())
         .then(data => {
           if (data.error) {
             lsjEntry.innerHTML = '<span class="lsj-error">Diogenes offline: ' + escHtml(data.error) + '</span>';
-            btnLsj.textContent = 'LSJ ↗'; btnLsj.disabled = false; return;
+            btnLsj.textContent = btnLabel; btnLsj.disabled = false; return;
           }
           if (!data.dictionary || data.dictionary.length === 0) {
-            lsjEntry.innerHTML = '<span class="lsj-error">Sem entrada LSJ para <em>' + escHtml(currentLemma) + '</em>.</span>';
-            btnLsj.textContent = 'LSJ ↗'; btnLsj.disabled = false; return;
+            lsjEntry.innerHTML = '<span class="lsj-error">Sem entrada para <em>' + escHtml(lookup) + '</em>.</span>';
+            btnLsj.textContent = btnLabel; btnLsj.disabled = false; return;
           }
           let html = '';
           data.dictionary.forEach(function (d) {
@@ -141,12 +149,12 @@
           }
           lsjEntry.innerHTML = html;
           lexLoaded = true;
-          btnLsj.textContent = 'LSJ ↗ (ocultar)';
+          btnLsj.textContent = btnLabel.replace(' ↗', ' ↗ (ocultar)');
           btnLsj.disabled = false;
         })
         .catch(function (err) {
           lsjEntry.innerHTML = '<span class="lsj-error">Erro: ' + escHtml(String(err)) + '</span>';
-          btnLsj.textContent = 'LSJ ↗'; btnLsj.disabled = false;
+          btnLsj.textContent = btnLabel; btnLsj.disabled = false;
         });
     });
   }

@@ -169,6 +169,15 @@ def api_lsj(lemma):
         return jsonify({'error': str(exc), 'morphology': [], 'dictionary': []}), 200
 
 
+@app.route('/api/lewis/<path:word>')
+def api_lewis(word):
+    try:
+        result = diogenes_parse(word, 'lat')
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({'error': str(exc), 'morphology': [], 'dictionary': []}), 200
+
+
 # ── API: Strong's Hebrew ──────────────────────────────────────────────────────
 
 @app.route('/api/strongs/<strong_num>')

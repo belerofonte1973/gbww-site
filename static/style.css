@@ -570,3 +570,14 @@ a:hover { text-decoration: underline; }
   border-left: 3px solid #c8962e;
   border-color: #d4a832;
 }
+
+/* ── Latin corpus ──────────────────────────────────────────────────────────── */
+:root {
+  --accent-lat:    #8b2500;
+  --accent-lat-lt: #fdf3f0;
+}
+.corpus-heading--lat  { color: var(--accent-lat); border-left-color: var(--accent-lat); }
+.book-card--lat       { border-left: 3px solid var(--accent-lat); }
+.book-card--lat:hover { background: var(--accent-lat-lt); }
+.card-gk--lat         { color: var(--accent-lat); font-family: serif; font-size: .75rem; letter-spacing: .06em; }
+.lit-badge--lat       { background: var(--accent-lat); color: #fff; padding: 2px 8px; border-radius: 3px; font-size: .78rem; }

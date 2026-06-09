@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Textos Clássicos — NT Grego · AT Hebraico · Literatura Suméria · Egípcio Antigo{% endblock %}
+{% block title %}Textos Clássicos — NT Grego · AT Hebraico · Literatura Suméria · Egípcio Antigo · Latim{% endblock %}
 
 {% block content %}
 <div class="index-wrap">
   <h1 class="index-title">Textos Clássicos</h1>
-  <p class="index-sub">NT grego (SBLGNT + MorphGNT) · AT hebraico (WLC + OSHB) · Literatura Suméria (ETCSL) · Egípcio Antigo · clique numa palavra para morfologia e léxico</p>
+  <p class="index-sub">NT grego (SBLGNT + MorphGNT) · AT hebraico (WLC + OSHB) · Literatura Suméria (ETCSL) · Egípcio Antigo · Latim Clássico (Perseus) · clique numa palavra para morfologia e léxico</p>
 
   {% set book_map = {} %}
   {% for b in books %}{% set _ = book_map.update({b.num: b}) %}{% endfor %}
@@ -105,6 +105,32 @@
         {% set t = egy_map[tid] %}
         <a href="{{ url_for('literary', text_id=t.id) }}" class="book-card book-card--egy">
           <span class="card-gk card-gk--egy">𓂀</span>
+          <span class="card-pt">{{ t.title_pt }}</span>
+        </a>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+
+
+  {# ── Latim Clássico ── #}
+  <h2 class="corpus-heading corpus-heading--lat">Latim Clássico</h2>
+  {% set lat_sections = [
+    ('Épica',              ['lat.aeneid', 'lat.lucretius']),
+    ('Poesia Lírica',      ['lat.eclogues', 'lat.catullus', 'lat.horace_odes', 'lat.ovid_amores']),
+    ('Prosa Histórica',    ['lat.caesar_gall']),
+  ] %}
+  {% set lat_map = {} %}
+  {% for t in lit_texts %}{% if t.lang == 'lat' %}{% set _ = lat_map.update({t.id: t}) %}{% endif %}{% endfor %}
+  {% for section_name, ids in lat_sections %}
+  <div class="book-section">
+    <h3 class="section-label">{{ section_name }}</h3>
+    <div class="book-cards">
+      {% for tid in ids %}{% if tid in lat_map %}
+        {% set t = lat_map[tid] %}
+        <a href="{{ url_for('literary', text_id=t.id) }}" class="book-card book-card--lat">
+          <span class="card-gk card-gk--lat">SPQR</span>
           <span class="card-pt">{{ t.title_pt }}</span>
         </a>
       {% endif %}{% endfor %}

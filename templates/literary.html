@@ -9,6 +9,7 @@
     <div class="lit-sidebar-title">
       {% if text.lang == 'egy' %}Literatura Egípcia
       {% elif text.lang == 'sux' %}Literatura Suméria
+      {% elif text.lang == 'lat' %}Latim Clássico
       {% else %}Textos Clássicos{% endif %}
     </div>
     <ul class="lit-nav-list">
@@ -36,6 +37,9 @@
         {% elif text.lang == 'sux' %}
           <span class="lit-badge lit-badge--sux">Sumério</span>
           <span class="lit-source">ETCSL · {{ text.id }}</span>
+        {% elif text.lang == 'lat' %}
+          <span class="lit-badge lit-badge--lat">Latim</span>
+          <span class="lit-source">Perseus · {{ text.id }}</span>
         {% else %}
           <span class="lit-badge">{{ text.lang }}</span>
           <span class="lit-source">{{ text.id }}</span>
