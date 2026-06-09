@@ -2,13 +2,11 @@
 """Classics reader — Flask app."""
 
 import json
-import sys
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
 from flask import Flask, render_template, request, g, abort, jsonify, redirect, url_for
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 try:
     from diogenes_api import parse_word as diogenes_parse
     _DIOGENES_OK = True
