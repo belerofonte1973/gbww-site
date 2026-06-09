@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,6 +22,8 @@
          title="{{ b.name_gk }}">{{ b.code }}</a>
     {% endfor %}
   </nav>
+
+  <a href="/busca" class="nav-busca-btn">🔍 Busca</a>
 
   <form class="header-search" action="/search" method="get">
     <input type="search" name="q" placeholder="Buscar lemma ou palavra…"

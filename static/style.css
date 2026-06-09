@@ -581,3 +581,46 @@ a:hover { text-decoration: underline; }
 .book-card--lat:hover { background: var(--accent-lat-lt); }
 .card-gk--lat         { color: var(--accent-lat); font-family: serif; font-size: .75rem; letter-spacing: .06em; }
 .lit-badge--lat       { background: var(--accent-lat); color: #fff; padding: 2px 8px; border-radius: 3px; font-size: .78rem; }
+
+/* ── Busca link card on index ──────────────────────────────────────────────── */
+.busca-link-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 10px 0 18px;
+  padding: 10px 16px;
+  background: #fdf3f0;
+  border: 1px solid #d0927a;
+  border-radius: 6px;
+}
+.busca-link-btn {
+  display: inline-block;
+  padding: 6px 18px;
+  background: #8b2500;
+  color: #fff;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.busca-link-btn:hover { background: #a33000; }
+.busca-link-sub {
+  font-size: 0.82rem;
+  color: #7a4030;
+}
+
+/* ── Header busca button ───────────────────────────────────────────────────── */
+.nav-busca-btn {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #8b2500;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+.nav-busca-btn:hover { background: #a33000; }

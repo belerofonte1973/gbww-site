@@ -6,6 +6,11 @@
   <h1 class="index-title">Textos Clássicos</h1>
   <p class="index-sub">NT grego (SBLGNT + MorphGNT) · AT hebraico (WLC + OSHB) · Literatura Suméria (ETCSL) · Egípcio Antigo · Latim Clássico (Perseus) · clique numa palavra para morfologia e léxico</p>
 
+  <div class="busca-link-card">
+    <a href="/busca" class="busca-link-btn">🔍 Busca Greco-Latina</a>
+    <span class="busca-link-sub">Busca em corpora latinos e gregos · Textos online (Perseus, Sefaria) · Cuneiforme CDLI · Museus e Bases de Dados</span>
+  </div>
+
   {% set book_map = {} %}
   {% for b in books %}{% set _ = book_map.update({b.num: b}) %}{% endfor %}
 

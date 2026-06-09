@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% block title %}Busca Greco-Latina — Textos Clássicos{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='busca.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="busca-page">
+
+  <nav class="busca-tabs">
+    <button class="btab active" data-tab="tab-busca">🔍 Busca Offline</button>
+    <button class="btab" data-tab="tab-online">🌐 Textos Online</button>
+    <button class="btab" data-tab="tab-cuneiforme">𒀭 Cuneiforme / CDLI</button>
+    <button class="btab" data-tab="tab-recursos">🏛 Museus e Bases de Dados</button>
+  </nav>
+
+  <!-- ═══════════════════════ TAB 1: BUSCA OFFLINE ═══════════════════════════ -->
+  <div id="tab-busca" class="btab-content active">
+
+    {% if not busca_ok %}
+    <p class="busca-warn">⚠ busca_latina.py não encontrado — busca offline indisponível.</p>
+    {% endif %}
+
+    <div class="busca-bar">
+      <input id="q" type="text" autocomplete="off" spellcheck="false"
+             placeholder="amor=exato · amor-=prefixo · -que=sufixo · -amor-=infixo · regex se usar . * [ \">
+      <button id="btn-search" onclick="startSearch()" {% if not busca_ok %}disabled{% endif %}>Buscar</button>
+      <button id="btn-stop"   onclick="stopSearch()" disabled>Parar</button>
+    </div>
+
+    <div class="busca-opts">
+      <label><input id="chk-ignore" type="checkbox" checked> Ignorar maiúsculas</label>
+      <span class="sep"></span>
+      <label>Contexto: <input id="spin-ctx" type="number" value="2" min="0" max="10" style="width:50px"></label>
+      <span class="sep"></span>
+      <label>Máx.: <input id="spin-max" type="number" value="100" min="0" max="9999" style="width:65px"></label>
+      <span class="sep"></span>
+      <span class="corpus-grp">
+        <label><input type="radio" name="corpus" value="0" checked> Latim (ambos)</label>
+        <label><input type="radio" name="corpus" value="1"> Latin Library</label>
+        <label><input type="radio" name="corpus" value="2"> Perseus (lat)</label>
+        <label><input type="radio" name="corpus" value="3"> Open Greek &amp; Latin</label>
+      </span>
+    </div>
+
+    <div class="busca-split">
+      <div class="obras-panel">
+        <div class="panel-title">Obras com ocorrências:</div>
+        <ul id="works-list"></ul>
+      </div>
+      <div id="results" class="results-panel"></div>
+    </div>
+
+    <!-- painel de tradução / dicionário -->
+    <div class="trans-panel">
+      <div class="trans-tools">
+        <label>Língua:
+          <select id="sel-lingua">
+            <option value="la">Latim</option>
+            <option value="grc">Grego Antigo</option>
+            <option value="hbo">Hebraico</option>
+          </select>
+        </label>
+        <span class="sep"></span>
+
+        {% if ollama_models %}
+        <label>Modelo IA:
+          <select id="sel-ollama-modelo">
+            <option value="">(automático)</option>
+            {% for m in ollama_models %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+        </label>
+        <button onclick="startTranslation('ollama')">🤖 Ollama →PT</button>
+        <button onclick="startTranslation('comentario')">📖 Comentário</button>
+        {% endif %}
+
+        <button onclick="startTranslation('gemini')">🌟 Gemini →PT</button>
+        <select id="sel-gemini-modelo">
+          {% for mid, rotulo in gemini_models %}<option value="{{ mid }}">{{ rotulo }}</option>{% endfor %}
+          {% if not gemini_models %}<option value="gemini-2.0-flash">Gemini Flash 2.0</option>{% endif %}
+        </select>
+        <button onclick="showGeminiKeyDialog()" title="Configurar chave API Gemini">🔑</button>
+
+        <button id="btn-stop-ia" onclick="stopTranslation()">⏹ Parar IA</button>
+        <span class="sep"></span>
+
+        {% if trad_ok %}
+        <label>Dicionário offline:</label>
+        <button onclick="lookupDict('ls')" title="Lewis & Short — latim→inglês">L&amp;S</button>
+        <button onclick="lookupDict('lsj')" title="LSJ — grego→inglês">LSJ</button>
+        <button onclick="lookupDict('collatinus_pt')" title="Collatinus — latim→português">Coll.PT</button>
+        <button onclick="lookupDict('wikt_pt')" title="Wikcionário — latim→português">Wikt.PT</button>
+        <span class="sep"></span>
+        {% endif %}
+
+        {% if pron_ok %}
+        <label>Pronúncia:
+          <select id="sel-voz">
+            {% for v in vozes %}
+            <option value="{{ v[0] }}" data-motor="{{ v[2] }}" data-lingua="{{ v[3] }}">{{ v[1] }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <select id="sel-variante">
+          <option value="classico">Clássico</option>
+          <option value="eclesiastico">Eclesiástico</option>
+          <option value="monotono">Grego monotónico</option>
+        </select>
+        <button onclick="pronunciarSeleccao()">🔊 Pronunciar</button>
+        <button onclick="pararPronuncia()">⏹</button>
+        <audio id="audio-out" controls style="height:28px;vertical-align:middle;display:none"></audio>
+        {% endif %}
+
+        <span class="sep"></span>
+        <button onclick="document.getElementById('trans-output').textContent=''">Limpar</button>
+      </div>
+      <div id="trans-output" class="trans-output"></div>
+    </div>
+  </div><!-- #tab-busca -->
+
+
+  <!-- ═══════════════════════ TAB 2: TEXTOS ONLINE ═══════════════════════════ -->
+  <div id="tab-online" class="btab-content">
+    <div class="perc-split">
+
+      <!-- painel esquerdo: catálogo -->
+      <div class="perc-left">
+        <div class="perc-lang-row">
+          <label>Fonte:
+            <select id="online-fonte" onchange="onlineFonteChange()">
+              {% if perseus_ok %}<option value="perseus">Perseus (grc/lat)</option>{% endif %}
+              {% if sefaria_ok %}<option value="sefaria">🕎 Sefaria (heb)</option>{% endif %}
+              {% if apibible_ok %}<option value="apibible">📖 API.Bible (heb)</option>{% endif %}
+            </select>
+          </label>
+          <span id="perc-lingua-wrap">
+            <label>Língua:
+              <select id="perc-lingua" onchange="percLoadCatalog()">
+                <option value="grc">Grego (grc)</option>
+                <option value="lat">Latim (lat)</option>
+              </select>
+            </label>
+          </span>
+          <span id="sefaria-cat-wrap" style="display:none">
+            <label>Categoria:
+              <select id="sefaria-cat" onchange="sefariaLoadCatalog()">
+                <option value="Tanakh">Tanakh</option>
+                <option value="Talmud">Talmud</option>
+                <option value="Midrash">Midrash</option>
+                <option value="Halakhah">Halachá</option>
+                <option value="Liturgy">Liturgia</option>
+                <option value="Jewish Thought">Pensamento Judaico</option>
+              </select>
+            </label>
+          </span>
+          <span id="apibible-wrap" style="display:none">
+            <label>Bíblia: <select id="apibible-biblia" onchange="apibibleLoadBooks()"></select></label>
+            <button onclick="showApibibleKeyDialog()" title="Configurar chave API.Bible">🔑</button>
+          </span>
+          <button onclick="reloadCurrentCatalog()" title="Atualizar catálogo">⟳</button>
+        </div>
+
+        <input id="perc-filter" type="text" placeholder="Filtrar autor ou obra…"
+               oninput="onlineFilter(this.value)">
+        <ul id="perc-works" class="perc-works-list"></ul>
+        <div id="perc-cat-status" class="perc-status">Selecione uma fonte acima.</div>
+      </div>
+
+      <!-- painel direito: leitor -->
+      <div class="perc-right">
+        <div id="perc-obra-sel" class="perc-obra-sel"><em>(nenhuma obra selecionada)</em></div>
+        <div class="perc-ref-row">
+          <label>Referência: <select id="perc-refs" onchange="onPercRefsChange()"></select></label>
+        </div>
+        <div id="perc-texto" class="perc-texto"
+             data-placeholder="Selecione uma obra à esquerda."></div>
+        <div class="perc-btn-row">
+          <button id="btn-perc-obra"     disabled onclick="onlineObraCompleta()">📥 Obra completa</button>
+          <button id="btn-perc-traduzir" disabled onclick="percTraduzir()">🌟 Traduzir →PT</button>
+          <button id="btn-perc-copiar"   disabled onclick="percCopiar()">Copiar</button>
+          {% if pron_ok %}
+          <button id="btn-perc-pron" disabled onclick="pronunciarPercTexto()">🔊 Pronunciar</button>
+          {% endif %}
+          <span id="perc-pass-status" class="perc-status"></span>
+        </div>
+        <div id="perc-trans-output" class="perc-trans-output" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="perc-footer">
+      <small>
+        {% if perseus_ok %}Perseus Project · {% endif %}
+        {% if sefaria_ok %}Sefaria · acesso livre · <a href="https://www.sefaria.org" target="_blank">sefaria.org</a> · {% endif %}
+        {% if apibible_ok %}API.Bible · chave gratuita em <a href="https://scripture.api.bible" target="_blank">scripture.api.bible</a>{% endif %}
+      </small>
+    </div>
+  </div><!-- #tab-online -->
+
+
+  <!-- ═══════════════════ TAB 3: CUNEIFORME / CDLI ══════════════════════════ -->
+  <div id="tab-cuneiforme" class="btab-content">
+    {% if not cdli_ok %}
+    <p class="busca-warn">⚠ cdli_api.py não disponível.</p>
+    {% else %}
+    <div class="cdli-header">
+      <h2 class="cdli-title">Cuneiform Digital Library Initiative (CDLI)</h2>
+      <p class="cdli-sub">Pesquisa em mais de 340 000 tabletes cuneiformes: Sumério, Acadiano, Babilónico, Hitita, Elamita, Hurrita, Ugarítico e Egípcio.</p>
+    </div>
+
+    <div class="busca-bar">
+      <input id="cdli-q" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Ex.: Gilgamesh, amor, 𒀭, PN...">
+      <select id="cdli-lang">
+        {% for code, label in cdli_langs.items() %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label>Máx.: <input id="cdli-limite" type="number" value="50" min="1" max="200" style="width:60px"></label>
+      <button onclick="cdliPesquisar()">Pesquisar</button>
+    </div>
+
+    <div class="cdli-split">
+      <div class="cdli-list-panel">
+        <div class="panel-title">Resultados:</div>
+        <ul id="cdli-list"></ul>
+        <div id="cdli-status" class="perc-status">Insira um termo e clique em Pesquisar.</div>
+      </div>
+      <div class="cdli-detail-panel">
+        <div id="cdli-detalhe-titulo" class="cdli-detalhe-titulo"><em>(nenhum artefato selecionado)</em></div>
+        <div id="cdli-detalhe-meta" class="cdli-detalhe-meta"></div>
+        <pre id="cdli-atf" class="cdli-atf"></pre>
+        <div class="perc-btn-row" style="margin-top:8px">
+          <button id="btn-cdli-traduzir" disabled onclick="cdliTraduzir()">🌟 Traduzir →PT</button>
+          <button id="btn-cdli-copiar"   disabled onclick="cdliCopiar()">Copiar ATF</button>
+          {% if pron_ok %}
+          <button id="btn-cdli-pron"     disabled onclick="pronunciarCdliTexto()">🔊 Pronunciar</button>
+          {% endif %}
+        </div>
+        <div id="cdli-trans-output" class="perc-trans-output" style="display:none"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div><!-- #tab-cuneiforme -->
+
+
+  <!-- ═══════════════════ TAB 4: MUSEUS E BASES DE DADOS ════════════════════ -->
+  <div id="tab-recursos" class="btab-content">
+    <div class="recursos-grid">
+
+      <section class="recursos-secao">
+        <h2>🏺 Bases de Dados de Textos Antigos</h2>
+
+        <h3>Cuneiforme (Sumério · Acadiano · Hitita · Elamita · Assírio)</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://cdli.mpiwg-berlin.mpg.de" target="_blank">CDLI — Cuneiform Digital Library Initiative</a> — 340 000+ tabletes (Sumério, Acadiano, Babilónico, Hitita, Elamita, Hurrita, Ugarítico)</li>
+          <li><a href="http://oracc.museum.upenn.edu" target="_blank">ORACC — Open Richly Annotated Cuneiform Corpus</a> — corpora anotados morfologicamente (Sumério, Acadiano, Neo-Assírio, Neo-Babilónico)</li>
+          <li><a href="https://etcsl.orinst.ox.ac.uk" target="_blank">ETCSL — Electronic Text Corpus of Sumerian Literature</a> — 400+ composições literárias sumérias (Oxford)</li>
+          <li><a href="https://epsd2.assyriologie.uni-muenchen.de" target="_blank">ePSD2 — Electronic Pennsylvania Sumerian Dictionary</a> — dicionário sumério online</li>
+          <li><a href="https://seal.huji.ac.il" target="_blank">SEAL — Sources of Early Akkadian Literature</a> — literatura acadiana pré-sargónica e sargónica</li>
+          <li><a href="https://www.assyrianlanguages.org/akkadian/index.php" target="_blank">Assyrian Languages — Diccionario acadio</a> — referência gramática e vocabulário acadiano</li>
+          <li><a href="https://www.hethport.uni-wuerzburg.de/hetkonk" target="_blank">HETHPORT — Hethitische Konkordanz (Hitita)</a> — textos hititas com concordância</li>
+          <li><a href="https://www.hittites.info" target="_blank">Hittites.info — Corpus hitita online</a> — textos, gramática e léxico</li>
+          <li><a href="https://www.assyrianlanguages.org/akkadian/index.php" target="_blank">Elam.net / DARIUSH — Elamita</a> — fontes elamitas do Oriental Institute</li>
+          <li><a href="https://www.oi.uchicago.edu/research/pubs/cad" target="_blank">CAD — Chicago Assyrian Dictionary (Oriental Institute)</a> — dicionário acadiano/assírio de referência</li>
+        </ul>
+
+        <h3>Egípcio Antigo</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://thesaurus-linguae-aegyptiae.de" target="_blank">TLA — Thesaurus Linguae Aegyptiae</a> — corpus de textos egípcios hieroglíficos (Berlin-Brandenburg Academy)</li>
+          <li><a href="https://www.egyptianhieroglyphs.net" target="_blank">Egyptianhieroglyphs.net</a> — hieróglifos, gramática, recursos de aprendizagem</li>
+          <li><a href="http://aaew.bbaw.de" target="_blank">AAEW — Altägyptisches Wörterbuch (Berlin)</a> — dicionário do egípcio antigo</li>
+          <li><a href="https://www.osirisnet.net" target="_blank">Osirisnet</a> — tumbas e textos hieroglíficos</li>
+        </ul>
+
+        <h3>Grego · Latino</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://www.perseus.tufts.edu" target="_blank">Perseus Digital Library (Tufts)</a> — textos gregos e latinos com morfologia e léxico</li>
+          <li><a href="https://www.tlg.uci.edu" target="_blank">TLG — Thesaurus Linguae Graecae (UC Irvine)</a> — corpus grego (subscrição institucional)</li>
+          <li><a href="https://www.thelatinlibrary.com" target="_blank">The Latin Library</a> — textos latinos em texto plano (offline neste site)</li>
+          <li><a href="https://logeion.uchicago.edu" target="_blank">Logeion (Chicago)</a> — LSJ + Lewis-Short online com formas</li>
+          <li><a href="https://latin.packhum.org" target="_blank">PHI Latin Texts (Packard Humanities)</a> — corpus latino completo</li>
+          <li><a href="https://scaife.perseus.org" target="_blank">Scaife Viewer (Perseus)</a> — leitor moderno do corpus Perseus</li>
+        </ul>
+
+        <h3>Hebraico · Aramaico</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://www.sefaria.org" target="_blank">Sefaria</a> — Tanakh, Talmud, Midrash, Zohar (hebraico + inglês)</li>
+          <li><a href="https://www.mechon-mamre.org" target="_blank">Mechon Mamre</a> — Tanakh em hebraico e tradução</li>
+          <li><a href="https://cal.huc.edu" target="_blank">CAL — Comprehensive Aramaic Lexicon</a> — corpus aramaico anotado</li>
+          <li><a href="https://www.deadseascrolls.org.il" target="_blank">Israel Antiquities — Manuscritos do Mar Morto online</a> — imagens de alta resolução e transcrições</li>
+        </ul>
+      </section>
+
+      <section class="recursos-secao">
+        <h2>🏛 Museus com Colecções Relevantes</h2>
+
+        <h3>🇬🇧 Reino Unido</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://www.britishmuseum.org/collection" target="_blank">British Museum (Londres)</a> — assírio, babilónico, egípcio, grego, romano, hitita (coleção online pesquisável)</li>
+          <li><a href="https://www.ashmolean.org/collections" target="_blank">Ashmolean Museum (Oxford)</a> — egípcio, mesopotâmico, grego, romano, tabletes cuneiformes</li>
+        </ul>
+
+        <h3>🇫🇷 França</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://collections.louvre.fr" target="_blank">Louvre (Paris)</a> — mesopotâmico, elamita, egípcio, grego, romano, persa (coleção online completa)</li>
+        </ul>
+
+        <h3>🇩🇪 Alemanha</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://www.smb.museum/museen-einrichtungen/vorderasiatisches-museum" target="_blank">Vorderasiatisches Museum (Berlin)</a> — cuneiforme, hitita, assírio, porta de Ishtar</li>
+          <li><a href="https://www.smb.museum/museen-einrichtungen/aegyptisches-museum-und-papyrussammlung" target="_blank">Ägyptisches Museum (Berlin)</a> — egípcio (busto de Nefertiti)</li>
+          <li><a href="https://www.smb.museum/museen-einrichtungen/pergamonmuseum" target="_blank">Pergamon Museum (Berlin)</a> — grego, romano, mesopotâmico</li>
+          <li><a href="https://www.orientalische-sammlungen.de" target="_blank">Staatliche Museen — Coleção Oriental (Berlin)</a></li>
+        </ul>
+
+        <h3>🇺🇸 Estados Unidos</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://www.metmuseum.org/art/collection" target="_blank">Metropolitan Museum of Art (Nova Iorque)</a> — egípcio, mesopotâmico, grego, romano, hitita</li>
+          <li><a href="https://www.penn.museum/collections" target="_blank">Penn Museum (Filadélfia)</a> — sumério (escavações em Ur), egípcio, mesopotâmico</li>
+          <li><a href="https://oi.uchicago.edu/collections" target="_blank">Oriental Institute (Chicago)</a> — mesopotâmico, elamita, hitita, egípcio, persa, acadiano</li>
+          <li><a href="https://www.mfa.org/collections" target="_blank">Museum of Fine Arts (Boston)</a> — egípcio, grego, romano</li>
+        </ul>
+
+        <h3>🇮🇹 Itália</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://www.museivaticani.va/content/museivaticani/en/collezioni.html" target="_blank">Museus do Vaticano (Roma)</a> — egípcio, greco-romano, etrusco, mesopotâmico</li>
+          <li><a href="https://www.museonazionaleromano.beniculturali.it" target="_blank">Museu Nacional Romano</a> — romano, grego</li>
+        </ul>
+
+        <h3>🇮🇶 Iraque · 🇪🇬 Egipto · 🇹🇷 Turquia · 🇮🇷 Irão · 🇬🇷 Grécia</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://www.egyptianmuseumcairo.com" target="_blank">Museu Egípcio do Cairo</a> — maior coleção egípcia do mundo (máscara de Tutankhamon)</li>
+          <li><a href="https://www.nationalmuseumofiraq.org" target="_blank">Museu Nacional do Iraque (Bagdade)</a> — sumério, acadiano, babilónico, assírio</li>
+          <li><a href="https://www.istanbularkeoloji.gov.tr" target="_blank">Museus Arqueológicos de Istambul</a> — hitita, grego, romano, mesopotâmico</li>
+          <li><a href="https://www.iranmuseums.ir" target="_blank">Museu Nacional do Irão (Teerão)</a> — elamita, persa aqueménida, babilónico</li>
+          <li><a href="https://www.namuseum.gr/en" target="_blank">Museu Arqueológico Nacional (Atenas)</a> — grego, micénico, cicládico, egípcio</li>
+        </ul>
+
+        <h3>🌐 Coleções Digitais</h3>
+        <ul class="recursos-lista">
+          <li><a href="https://www.europeana.eu" target="_blank">Europeana</a> — artefactos de museus europeus em acesso aberto</li>
+          <li><a href="https://sketchfab.com/britishmuseum" target="_blank">British Museum no Sketchfab</a> — modelos 3D de artefactos</li>
+          <li><a href="https://artsandculture.google.com" target="_blank">Google Arts &amp; Culture</a> — tours virtuais e obras de arte de centenas de museus</li>
+          <li><a href="https://www.wikidata.org" target="_blank">Wikidata</a> — dados estruturados sobre artefactos e publicações arqueológicas</li>
+        </ul>
+      </section>
+
+    </div>
+  </div><!-- #tab-recursos -->
+
+</div><!-- .busca-page -->
+
+<!-- ── diálogo chave Gemini ───────────────────────────────────────────────── -->
+<div id="gemini-dialog" class="dialog-overlay" style="display:none">
+  <div class="dialog-box">
+    <h3>Chave API Gemini</h3>
+    <p>Obtenha em <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></p>
+    <input id="gemini-key-input" type="password" placeholder="Insira a chave…" style="width:100%">
+    <div class="dialog-btns">
+      <button onclick="saveGeminiKey()">Guardar</button>
+      <button onclick="closeGeminiKeyDialog()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── diálogo chave API.Bible ───────────────────────────────────────────── -->
+{% if apibible_ok %}
+<div id="apibible-dialog" class="dialog-overlay" style="display:none">
+  <div class="dialog-box">
+    <h3>Chave API.Bible</h3>
+    <p>Obtenha gratuitamente em <a href="https://scripture.api.bible" target="_blank">scripture.api.bible</a></p>
+    <input id="apibible-key-input" type="password" placeholder="Insira a chave…" style="width:100%">
+    <div class="dialog-btns">
+      <button onclick="saveApibibleKey()">Guardar</button>
+      <button onclick="closeApibibleKeyDialog()">Cancelar</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<footer id="status-bar" class="busca-statusbar">Pronto.</footer>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='busca.js') }}"></script>
+{% endblock %}
