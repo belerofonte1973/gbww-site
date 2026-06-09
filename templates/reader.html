@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ book.name_pt }} {{ chapter }} — Textos Clássicos{% endblock %}
+
+{% set is_heb = (book.lang == 'heb') %}
+
+{% block content %}
+<div class="reader-wrap">
+
+  <!-- Sidebar: chapter list -->
+  <aside class="chapter-sidebar">
+    <div class="sidebar-bookname">{{ book.name_pt }}</div>
+    <div class="sidebar-gkname {% if is_heb %}sidebar-gkname--heb{% endif %}">{{ book.name_gk }}</div>
+    <div class="chapter-list">
+      {% for ch in range(1, book.chapters + 1) %}
+        <a href="/read/{{ book.num }}/{{ ch }}"
+           class="ch-link {% if ch == chapter %}active{% endif %}">{{ ch }}</a>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- Main text -->
+  <main class="reader-main">
+
+    <!-- Nav bar -->
+    <div class="reader-nav">
+      {# ── prev ── #}
+      {% if chapter > 1 %}
+        <a class="nav-arrow" href="/read/{{ book.num }}/{{ chapter - 1 }}">‹ cap. {{ chapter - 1 }}</a>
+      {% else %}
+        {% set prev_book = books | selectattr('num', 'equalto', book.num - 1) | first %}
+        {% if prev_book %}
+          <a class="nav-arrow" href="/read/{{ book.num - 1 }}/{{ prev_book.chapters }}">‹ {{ prev_book.name_pt }}</a>
+        {% else %}
+          <span></span>
+        {% endif %}
+      {% endif %}
+
+      <h1 class="reader-heading">{{ book.name_pt }} {{ chapter }}</h1>
+
+      {# ── next ── #}
+      {% if chapter < book.chapters %}
+        <a class="nav-arrow" href="/read/{{ book.num }}/{{ chapter + 1 }}">cap. {{ chapter + 1 }} ›</a>
+      {% else %}
+        {% set next_book = books | selectattr('num', 'equalto', book.num + 1) | first %}
+        {% if next_book %}
+          <a class="nav-arrow" href="/read/{{ book.num + 1 }}/1">{{ next_book.name_pt }} ›</a>
+        {% else %}
+          <span></span>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <!-- Translation toggle (only if translations exist for this chapter) -->
+    {% if trans %}
+    <div class="trans-toolbar">
+      <button class="btn-trans" id="btn-trans" title="Mostrar/ocultar tradução portuguesa">
+        PT
+      </button>
+      <span class="trans-label" id="trans-label">Almeida Revisada</span>
+    </div>
+    {% endif %}
+
+    <!-- Text -->
+    <div class="verse-list {% if is_heb %}verse-list--heb{% endif %}"
+         lang="{{ 'he' if is_heb else 'grc' }}"
+         {% if is_heb %}dir="rtl"{% endif %}
+         data-lang="{{ book.lang }}">
+
+      {% for verse_num, tokens in verses.items() %}
+      <div class="verse-row" id="v{{ verse_num }}">
+
+        <!-- Original text -->
+        <div class="verse-orig {% if is_heb %}heb-text{% endif %}">
+          <span class="verse-num">{{ verse_num }}</span>
+          {% for tok in tokens %}
+            {%- set punct_chars = '.,;·:!?׃' -%}
+            {%- set last = tok.text[-1] if tok.text else '' -%}
+            {%- set has_punct = last in punct_chars -%}
+            {%- set display = tok.text[:-1] if has_punct else tok.text -%}
+            {%- set punct   = last if has_punct else '' -%}
+            <span class="token"
+                  data-lemma="{{ tok.lemma }}"
+                  data-word="{{ tok.word }}"
+                  data-pos="{{ tok.pos }}"
+                  data-desc="{{ tok.desc_pt }}"
+                  data-strong="{{ tok.strong_num or '' }}"
+                  tabindex="0">{{ display }}</span>{{ punct }}{{ ' ' }}
+          {%- endfor %}
+        </div>
+
+        <!-- Portuguese translation (hidden by default) -->
+        {% if trans.get(verse_num) %}
+        <div class="verse-tr">{{ trans[verse_num] }}</div>
+        {% endif %}
+
+      </div>
+      {% endfor %}
+    </div>
+
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  var btn   = document.getElementById('btn-trans');
+  var label = document.getElementById('trans-label');
+  if (!btn) return;
+  var list  = document.querySelector('.verse-list');
+  var on    = false;
+  btn.addEventListener('click', function(){
+    on = !on;
+    list.classList.toggle('show-translation', on);
+    btn.classList.toggle('btn-trans--active', on);
+    label.textContent = on ? 'Almeida Revisada (ocultar)' : 'Almeida Revisada';
+  });
+})();
+</script>
+{% endblock %}

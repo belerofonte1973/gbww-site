@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}{{ text.title_pt }} — Textos Clássicos{% endblock %}
+
+{% block content %}
+<div class="lit-wrap">
+
+  <!-- Sidebar -->
+  <aside class="lit-sidebar">
+    <div class="lit-sidebar-title">Literatura Suméria</div>
+    <ul class="lit-nav-list">
+      {% for t in all_texts %}
+        <li>
+          <a href="{{ url_for('literary', text_id=t.id) }}"
+             class="{% if t.id == text.id %}active{% endif %}">
+            {{ t.title_pt }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <!-- Main reader -->
+  <main class="lit-main">
+
+    <!-- Header -->
+    <div class="lit-header">
+      <h1 class="lit-title">{{ text.title_pt }}</h1>
+      <div class="lit-meta">
+        <span class="lit-badge lit-badge--sux">Sumério</span>
+        <span class="lit-source">ETCSL · {{ text.id }}</span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="lit-toolbar">
+      <button class="btn-trans" id="btn-trans-all">EN</button>
+      <span class="trans-label" id="btn-trans-label">Tradução inglesa</span>
+      {% if gemini_ok and gemini_key_set %}
+      <button class="btn-gemini" id="btn-gemini-all">🌟 Traduzir →PT</button>
+      {% elif gemini_ok %}
+      <button class="btn-gemini btn-gemini--key" id="btn-gemini-key">🔑 Configurar Gemini</button>
+      {% endif %}
+      <span class="lit-page-info">p. {{ page }}/{{ total_pages }}</span>
+    </div>
+
+    <!-- Sections -->
+    <div class="lit-text-body" data-lang="{{ text.lang }}">
+      {% for sec in sections %}
+      <div class="lit-section">
+
+        <!-- Translation block (EN, toggle) -->
+        <div class="lit-trans-block" style="display:none">
+          {{ sec.para.text_en }}
+        </div>
+
+        <!-- PT translation output (Gemini) -->
+        <div class="lit-pt-block" style="display:none"></div>
+
+        <!-- Transliteration lines -->
+        <div class="lit-lines">
+          {% for ln in sec.lines %}
+          <div class="lit-line">
+            <span class="lit-linenum">{{ ln.num }}</span>
+            <span class="lit-translit">
+              {% if ln.words %}
+                {% for w in ln.words %}
+                  <span class="token"
+                        data-word="{{ w.form }}"
+                        data-lemma="{{ w.lemma }}"
+                        data-pos="{{ w.pos }}"
+                        data-desc="{{ w.gloss }}"
+                        tabindex="0">{{ w.form }}</span>
+                {% endfor %}
+              {% else %}
+                {{ ln.translit }}
+              {% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+
+      </div><!-- .lit-section -->
+      {% endfor %}
+    </div><!-- .lit-text-body -->
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <nav class="lit-pagination">
+      {% if page > 1 %}
+        <a class="page-link" href="{{ url_for('literary', text_id=text.id, page=page-1) }}">‹ anterior</a>
+      {% endif %}
+      <span class="page-cur">{{ page }} / {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a class="page-link" href="{{ url_for('literary', text_id=text.id, page=page+1) }}">próxima ›</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+
+  </main>
+</div><!-- .lit-wrap -->
+
+<!-- Gemini key dialog (reuse base overlay) -->
+<div id="gemini-dialog" class="dialog-overlay" style="display:none">
+  <div class="dialog-box">
+    <h3>Chave API Gemini</h3>
+    <p>Obtenha em <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></p>
+    <input id="gemini-key-input" type="password" placeholder="Insira a chave…" style="width:100%">
+    <div class="dialog-btns">
+      <button onclick="saveGeminiKey()">Guardar</button>
+      <button onclick="document.getElementById('gemini-dialog').style.display='none'">Cancelar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  'use strict';
+
+  // ── translation toggles ────────────────────────────────────────────────────
+  var enOn = false;
+
+  function setEnVisible(on) {
+    enOn = on;
+    document.querySelectorAll('.lit-trans-block').forEach(function (el) {
+      el.style.display = on ? 'block' : 'none';
+    });
+    var btn = document.getElementById('btn-trans-all');
+    if (btn) btn.classList.toggle('btn-trans--active', on);
+    var lbl = document.getElementById('btn-trans-label');
+    if (lbl) lbl.textContent = on ? 'Tradução inglesa (ocultar)' : 'Tradução inglesa';
+  }
+
+  var btnEN = document.getElementById('btn-trans-all');
+  if (btnEN) btnEN.addEventListener('click', function () { setEnVisible(!enOn); });
+
+  // ── Gemini translation ────────────────────────────────────────────────────
+  var btnGemini = document.getElementById('btn-gemini-all');
+  var btnGeminiKey = document.getElementById('btn-gemini-key');
+  var transCtrl = null;
+
+  if (btnGemini) {
+    btnGemini.addEventListener('click', function () {
+      translateAllSections();
+    });
+  }
+
+  if (btnGeminiKey) {
+    btnGeminiKey.addEventListener('click', function () {
+      document.getElementById('gemini-dialog').style.display = 'flex';
+      document.getElementById('gemini-key-input').focus();
+    });
+  }
+
+  function translateAllSections() {
+    var sections = document.querySelectorAll('.lit-section');
+    sections.forEach(function (sec) {
+      var transBlock = sec.querySelector('.lit-trans-block');
+      var ptBlock    = sec.querySelector('.lit-pt-block');
+      if (!transBlock || !ptBlock) return;
+      var enText = transBlock.textContent.trim();
+      if (!enText) return;
+      translateBlock(enText, ptBlock);
+    });
+  }
+
+  async function translateBlock(enText, outEl) {
+    if (outEl.dataset.done === '1') return;  // already translated
+    outEl.style.display = 'block';
+    outEl.textContent   = '⏳…';
+
+    if (transCtrl) transCtrl.abort();
+    transCtrl = new AbortController();
+
+    try {
+      var resp = await fetch('/api/traduzir_pt', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({texto: enText}),
+        signal:  transCtrl.signal,
+      });
+      var reader  = resp.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = '';
+      outEl.textContent = '';
+      while (true) {
+        var res = await reader.read();
+        if (res.done) break;
+        buf += decoder.decode(res.value, {stream: true});
+        var parts = buf.split('\n\n');
+        buf = parts.pop();
+        for (var block of parts) {
+          var evType = 'message', dataStr = '';
+          block.split('\n').forEach(function (line) {
+            if (line.startsWith('event: ')) evType  = line.slice(7).trim();
+            if (line.startsWith('data: '))  dataStr = line.slice(6);
+          });
+          if (!dataStr) continue;
+          try {
+            var d = JSON.parse(dataStr);
+            if (evType === 'chunk') outEl.textContent += d.text;
+            if (evType === 'erro')  outEl.textContent  = '⚠ ' + d.msg;
+          } catch(_) {}
+        }
+      }
+      outEl.dataset.done = '1';
+    } catch (err) {
+      if (err.name !== 'AbortError') outEl.textContent = '⚠ ' + err.message;
+    }
+  }
+
+  // ── Gemini key save ───────────────────────────────────────────────────────
+  async function saveGeminiKey() {
+    var chave = document.getElementById('gemini-key-input').value.trim();
+    if (!chave) return;
+    var resp = await fetch('/api/gemini_chave', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({chave: chave}),
+    });
+    var d = await resp.json();
+    document.getElementById('gemini-dialog').style.display = 'none';
+    if (d.ok) location.reload();
+  }
+  window.saveGeminiKey = saveGeminiKey;
+
+  document.getElementById('gemini-key-input')?.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter')  saveGeminiKey();
+    if (e.key === 'Escape') document.getElementById('gemini-dialog').style.display = 'none';
+  });
+
+})();
+</script>
+{% endblock %}

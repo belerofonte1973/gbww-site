@@ -1,0 +1,10 @@
+*.db
+*.db-shm
+*.db-wal
+venv/
+__pycache__/
+*.pyc
+data/etcsl_cache/
+data/oracc/
+*.tmp
+.env

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Textos Clássicos{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Noto+Serif+Hebrew:wght@400;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<header class="site-header">
+  <a class="site-brand" href="/">Textos Clássicos</a>
+
+  <nav class="book-nav">
+    {% for b in books %}
+      <a href="/read/{{ b.num }}"
+         class="book-chip {% if request.view_args and request.view_args.get('book_num') == b.num %}active{% endif %}"
+         title="{{ b.name_gk }}">{{ b.code }}</a>
+    {% endfor %}
+  </nav>
+
+  <form class="header-search" action="/search" method="get">
+    <input type="search" name="q" placeholder="Buscar lemma ou palavra…"
+           value="{{ request.args.get('q','') }}">
+    <button type="submit">↵</button>
+  </form>
+</header>
+
+<div class="page-body">
+  {% block content %}{% endblock %}
+</div>
+
+<!-- Morphological popup -->
+<div id="morph-popup" class="morph-popup" style="display:none" role="dialog" aria-modal="true">
+  <button class="popup-close" id="popup-close" aria-label="Fechar">×</button>
+  <div class="popup-text"  id="popup-text"></div>
+  <div class="popup-lemma" id="popup-lemma"></div>
+  <div class="popup-desc"  id="popup-desc"></div>
+  <div class="popup-lsj">
+    <!-- Greek: LSJ via Diogenes -->
+    <button class="btn-lsj" id="btn-lsj" style="display:none">LSJ ↗</button>
+    <!-- Hebrew: Strong's from local DB -->
+    <button class="btn-strongs" id="btn-strongs" style="display:none">Strong's ↗</button>
+    <div class="lsj-entry" id="lsj-entry" style="display:none"></div>
+  </div>
+</div>
+<div id="popup-overlay" style="display:none"></div>
+
+<script src="{{ url_for('static', filename='reader.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

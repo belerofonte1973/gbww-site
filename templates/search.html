@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Pesquisa — Textos Clássicos{% endblock %}
+
+{% block content %}
+<div class="search-wrap">
+  <h1 class="search-title">Pesquisa</h1>
+
+  <form class="search-form" action="/search" method="get">
+    <input class="search-input" type="search" name="q"
+           value="{{ q }}" placeholder="lemma ou forma grega…" autofocus>
+    <button type="submit">Buscar</button>
+  </form>
+
+  {% if q %}
+    <p class="search-count">{{ rows|length }} ocorrências{% if rows|length == 200 %} (limite atingido){% endif %}</p>
+
+    {% if rows %}
+    <table class="results-table">
+      <thead>
+        <tr><th>Referência</th><th>Texto</th><th>Lemma</th><th>Análise</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="ref-cell">
+            <a href="/read/{{ r.book_num }}/{{ r.chapter }}#v{{ r.verse }}">
+              {{ r.name_pt }} {{ r.chapter }}:{{ r.verse }}
+            </a>
+          </td>
+          <td class="greek-cell">{{ r.text }}</td>
+          <td class="lemma-cell">{{ r.lemma }}</td>
+          <td class="desc-cell">{{ r.desc_pt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="no-results">Nenhum resultado para "<em>{{ q }}</em>".</p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
