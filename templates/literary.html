@@ -6,7 +6,11 @@
 
   <!-- Sidebar -->
   <aside class="lit-sidebar">
-    <div class="lit-sidebar-title">Literatura Suméria</div>
+    <div class="lit-sidebar-title">
+      {% if text.lang == 'egy' %}Literatura Egípcia
+      {% elif text.lang == 'sux' %}Literatura Suméria
+      {% else %}Textos Clássicos{% endif %}
+    </div>
     <ul class="lit-nav-list">
       {% for t in all_texts %}
         <li>
@@ -26,15 +30,28 @@
     <div class="lit-header">
       <h1 class="lit-title">{{ text.title_pt }}</h1>
       <div class="lit-meta">
-        <span class="lit-badge lit-badge--sux">Sumério</span>
-        <span class="lit-source">ETCSL · {{ text.id }}</span>
+        {% if text.lang == 'egy' %}
+          <span class="lit-badge lit-badge--egy">Egípcio Antigo</span>
+          <span class="lit-source">{{ text.corpus|replace('_',' ')|title }} · {{ text.id }}</span>
+        {% elif text.lang == 'sux' %}
+          <span class="lit-badge lit-badge--sux">Sumério</span>
+          <span class="lit-source">ETCSL · {{ text.id }}</span>
+        {% else %}
+          <span class="lit-badge">{{ text.lang }}</span>
+          <span class="lit-source">{{ text.id }}</span>
+        {% endif %}
+        {% if text.note %}
+          <p class="lit-note">{{ text.note }}</p>
+        {% endif %}
       </div>
     </div>
 
     <!-- Controls -->
     <div class="lit-toolbar">
+      {% if sections and sections[0].lines|length > 0 %}
       <button class="btn-trans" id="btn-trans-all">EN</button>
       <span class="trans-label" id="btn-trans-label">Tradução inglesa</span>
+      {% endif %}
       {% if gemini_ok and gemini_key_set %}
       <button class="btn-gemini" id="btn-gemini-all">🌟 Traduzir →PT</button>
       {% elif gemini_ok %}
@@ -46,17 +63,26 @@
     <!-- Sections -->
     <div class="lit-text-body" data-lang="{{ text.lang }}">
       {% for sec in sections %}
-      <div class="lit-section">
+      {% set has_translit = sec.lines|length > 0 %}
+      <div class="lit-section {% if not has_translit %}lit-section--trans-only{% endif %}">
 
-        <!-- Translation block (EN, toggle) -->
+        {% if has_translit %}
+        <!-- Translation block (EN, toggle) — hidden by default for texts with transliteration -->
         <div class="lit-trans-block" style="display:none">
           {{ sec.para.text_en }}
         </div>
+        {% else %}
+        <!-- EN text shown directly (no transliteration available) -->
+        <div class="lit-trans-block lit-trans-block--primary">
+          {{ sec.para.text_en }}
+        </div>
+        {% endif %}
 
         <!-- PT translation output (Gemini) -->
         <div class="lit-pt-block" style="display:none"></div>
 
-        <!-- Transliteration lines -->
+        <!-- Transliteration lines (shown only when available) -->
+        {% if has_translit %}
         <div class="lit-lines">
           {% for ln in sec.lines %}
           <div class="lit-line">
@@ -78,6 +104,7 @@
           </div>
           {% endfor %}
         </div>
+        {% endif %}
 
       </div><!-- .lit-section -->
       {% endfor %}

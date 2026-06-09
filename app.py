@@ -50,7 +50,7 @@ def all_books():
 
 
 def all_lit_texts():
-    return get_db().execute('SELECT * FROM lit_texts ORDER BY id').fetchall()
+    return get_db().execute('SELECT * FROM lit_texts ORDER BY lang, id').fetchall()
 
 
 # ── index ─────────────────────────────────────────────────────────────────────
@@ -141,15 +141,18 @@ def literary(text_id):
             lines_out.append({'num': ln['line_num'], 'translit': ln['translit'], 'words': words})
         sections.append({'para': dict(para), 'lines': lines_out})
 
-    # Sidebar: all texts in same corpus
-    all_texts = db.execute('SELECT id, title_pt FROM lit_texts ORDER BY id').fetchall()
+    # Sidebar: texts of same language
+    lang_texts = db.execute(
+        'SELECT id, title_pt FROM lit_texts WHERE lang=? ORDER BY id',
+        (text['lang'],)
+    ).fetchall()
 
     return render_template('literary.html',
         text=text,
         sections=sections,
         page=page,
         total_pages=total_pages,
-        all_texts=all_texts,
+        all_texts=lang_texts,
         gemini_ok=_GEMINI_OK,
         gemini_key_set=bool(gemini_obter_chave()) if _GEMINI_OK else False,
     )

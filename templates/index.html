@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Textos Clássicos — NT Grego · AT Hebraico · Literatura Suméria{% endblock %}
+{% block title %}Textos Clássicos — NT Grego · AT Hebraico · Literatura Suméria · Egípcio Antigo{% endblock %}
 
 {% block content %}
 <div class="index-wrap">
   <h1 class="index-title">Textos Clássicos</h1>
-  <p class="index-sub">NT grego (SBLGNT + MorphGNT) · AT hebraico (WLC + OSHB) · Literatura Suméria (ETCSL) · clique numa palavra para morfologia e léxico</p>
+  <p class="index-sub">NT grego (SBLGNT + MorphGNT) · AT hebraico (WLC + OSHB) · Literatura Suméria (ETCSL) · Egípcio Antigo · clique numa palavra para morfologia e léxico</p>
 
   {% set book_map = {} %}
   {% for b in books %}{% set _ = book_map.update({b.num: b}) %}{% endfor %}
@@ -79,6 +79,32 @@
         {% set t = lit_map[tid] %}
         <a href="{{ url_for('literary', text_id=t.id) }}" class="book-card book-card--sux">
           <span class="card-gk card-gk--sux">{{ t.id }}</span>
+          <span class="card-pt">{{ t.title_pt }}</span>
+        </a>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+
+  {# ── Egípcio Antigo ── #}
+  <h2 class="corpus-heading corpus-heading--egy">Egípcio Antigo</h2>
+  {% set egy_sections = [
+    ('Hinos e Poesia Religiosa', ['egy.hymn_aten','egy.hymn_nile','egy.ani_osiris']),
+    ('Livro dos Mortos (Papiro de Ani)', ['egy.ani_chapters','egy.ani_125']),
+    ('Literatura e Sabedoria', ['egy.love_poems','egy.misanthrope']),
+    ('Textos Históricos', ['egy.megiddo']),
+  ] %}
+  {% set egy_map = {} %}
+  {% for t in lit_texts %}{% if t.lang == 'egy' %}{% set _ = egy_map.update({t.id: t}) %}{% endif %}{% endfor %}
+  {% for section_name, ids in egy_sections %}
+  <div class="book-section">
+    <h3 class="section-label">{{ section_name }}</h3>
+    <div class="book-cards">
+      {% for tid in ids %}{% if tid in egy_map %}
+        {% set t = egy_map[tid] %}
+        <a href="{{ url_for('literary', text_id=t.id) }}" class="book-card book-card--egy">
+          <span class="card-gk card-gk--egy">𓂀</span>
           <span class="card-pt">{{ t.title_pt }}</span>
         </a>
       {% endif %}{% endfor %}

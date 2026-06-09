@@ -517,3 +517,56 @@ a:hover { text-decoration: underline; }
                  border-bottom: 1px solid var(--border); }
   .lit-main { padding: 16px; }
 }
+
+/* ── Egyptian Ancient Texts ─────────────────────────────────────────── */
+:root {
+  --accent-egy:    #b07d2a;
+  --accent-egy-lt: #fef8ec;
+  --font-egy:      'Noto Sans', 'Noto Sans Egyptian Hieroglyphs', serif;
+}
+
+/* Index card */
+.corpus-heading--egy { color: var(--accent-egy); border-left-color: var(--accent-egy); }
+.book-card--egy      { border-left: 3px solid var(--accent-egy); }
+.book-card--egy:hover { background: var(--accent-egy-lt); }
+.card-gk--egy        { font-size: 1.6rem; color: var(--accent-egy); font-family: var(--font-egy); }
+
+/* Badge */
+.lit-badge--egy {
+  background: var(--accent-egy);
+  color: #fff;
+  font-size: .7rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  letter-spacing: .04em;
+}
+
+/* Source note below title */
+.lit-note {
+  font-size: .8rem;
+  color: var(--muted);
+  margin: 6px 0 0;
+  font-style: italic;
+  max-width: 60ch;
+  line-height: 1.4;
+}
+
+/* Egyptian trans-only sections — EN text shown as primary */
+.lit-section--trans-only .lit-trans-block--primary {
+  display: block !important;
+  background: var(--accent-egy-lt);
+  border-left: 3px solid var(--accent-egy);
+  padding: 10px 14px;
+  margin-bottom: 4px;
+  border-radius: 0 4px 4px 0;
+  font-size: .95rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* Egyptian PT block */
+.lit-section--trans-only .lit-pt-block {
+  background: var(--accent-egy-lt);
+  border-left: 3px solid #c8962e;
+  border-color: #d4a832;
+}
