@@ -587,3 +587,59 @@
   cursor: pointer;
 }
 .dialog-btns button:hover { background: #e4ded4; }
+
+/* ── CDLI obras notáveis ──────────────────────────────────────────────────── */
+.cdli-obras-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #faf8f5;
+  border-bottom: 1px solid var(--busca-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.cdli-obras-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #7a6550;
+  white-space: nowrap;
+  margin-top: 3px;
+}
+.cdli-obras-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+.cdli-obra-btn {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid #c0a888;
+  border-radius: 12px;
+  background: #ede5d8;
+  color: #5a3a1a;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.cdli-obra-btn:hover { background: #d4c4a8; }
+.cdli-obra-btn.loading { opacity: 0.5; font-style: italic; }
+
+/* ── btn-like (link styled as button) ────────────────────────────────────── */
+.btn-like {
+  display: inline-block;
+  height: 28px;
+  line-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #c4b9aa;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  background: #f0ece5;
+  color: #3a2a1a;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-like:hover { background: #e4ded4; }

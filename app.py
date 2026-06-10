@@ -652,9 +652,16 @@ def api_cdli_artefato(artifact_id):
     if not _CDLI_OK:
         return jsonify({'erro': 'cdli_api.py não disponível'})
     try:
-        return jsonify(_cdli.obter_artefacto(artifact_id))
+        return jsonify(_cdli.obter_artefato(artifact_id))
     except Exception as ex:
         return jsonify({'erro': str(ex)}), 500
+
+
+@app.route('/api/cdli/obras_notaveis')
+def api_cdli_obras_notaveis():
+    if not _CDLI_OK:
+        return jsonify([])
+    return jsonify(_cdli.OBRAS_NOTAVEIS)
 
 
 # ── API: Diogenes / LSJ / Lewis-Short ────────────────────────────────────────

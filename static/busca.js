@@ -886,29 +886,35 @@ function cdliSelectItem(index) {
   if (!item) return;
 
   document.getElementById('cdli-detalhe-titulo').textContent =
-    item.display_name || item.id;
+    `${item.display_name || item.id}  (${item.pnum || item.id})`;
   document.getElementById('cdli-detalhe-meta').innerHTML =
     [item.period && `<span>Período: ${esc(item.period)}</span>`,
      item.provenience && `<span>Procedência: ${esc(item.provenience)}</span>`,
-     item.genre && `<span>Género: ${esc(item.genre)}</span>`,
+     item.genre && `<span>Gênero: ${esc(item.genre)}</span>`,
      item.primary_publication && `<span>Pub.: ${esc(item.primary_publication)}</span>`,
      item.lang && `<span>Língua: ${esc(item.lang)}</span>`,
     ].filter(Boolean).join(' · ');
 
+  // Link "Ver no CDLI"
+  const verBtn = document.getElementById('btn-cdli-ver');
+  if (verBtn && item.url_cdli) {
+    verBtn.href = item.url_cdli;
+    verBtn.style.display = 'inline-block';
+  }
+
   const atfEl = document.getElementById('cdli-atf');
-  atfEl.textContent = item.atf_text || '(transliteração não incluída — a carregar…)';
+  atfEl.textContent = item.atf_text || '(a carregar transliteração…)';
 
   ['btn-cdli-traduzir','btn-cdli-copiar','btn-cdli-pron'].forEach(id => setPercBtn(id, true));
   document.getElementById('cdli-trans-output').style.display = 'none';
 
-  // Se não tiver ATF, tentar buscar detalhes completos
   if (!item.atf_text && item.id) {
     fetch(`/api/cdli/artefato/${enc(item.id)}`)
       .then(r => r.json())
       .then(d => {
-        if (d.erro) { atfEl.textContent = `(sem transliteração disponível)`; return; }
-        const cdl = d.cdl || {};
-        const atf = (typeof cdl === 'object' ? cdl.atf : '') || d.atf || '';
+        if (d.erro) { atfEl.textContent = '(sem transliteração disponível)'; return; }
+        const insc = d.inscription || {};
+        const atf = insc.atf || d.atf || '';
         if (atf) {
           atfEl.textContent = atf;
           S.cdliData[index].atf_text = atf;
@@ -924,8 +930,40 @@ function cdliClearDetail() {
   document.getElementById('cdli-detalhe-titulo').innerHTML = '<em>(nenhum artefato selecionado)</em>';
   document.getElementById('cdli-detalhe-meta').textContent = '';
   document.getElementById('cdli-atf').textContent = '';
+  const verBtn = document.getElementById('btn-cdli-ver');
+  if (verBtn) verBtn.style.display = 'none';
   ['btn-cdli-traduzir','btn-cdli-copiar','btn-cdli-pron'].forEach(id => setPercBtn(id, false));
   document.getElementById('cdli-trans-output').style.display = 'none';
+}
+
+function cdliLoadObrasNotaveis() {
+  fetch('/api/cdli/obras_notaveis')
+    .then(r => r.json())
+    .then(obras => {
+      const container = document.getElementById('cdli-obras-btns');
+      if (!container) return;
+      container.innerHTML = '';
+      obras.forEach(o => {
+        const btn = document.createElement('button');
+        btn.className   = 'cdli-obra-btn';
+        btn.textContent = o.nome;
+        btn.title       = `Pesquisar: ${o.q}  [${o.lang}]`;
+        btn.addEventListener('click', () => {
+          document.getElementById('cdli-q').value = o.q;
+          const langSel = document.getElementById('cdli-lang');
+          if (langSel) {
+            const opt = Array.from(langSel.options).find(x => x.value === o.lang);
+            if (opt) langSel.value = o.lang;
+          }
+          cdliPesquisar();
+        });
+        container.appendChild(btn);
+      });
+    })
+    .catch(() => {
+      const c = document.getElementById('cdli-obras-btns');
+      if (c) c.innerHTML = '';
+    });
 }
 
 async function cdliTraduzir() {
@@ -1006,4 +1044,8 @@ document.querySelector('[data-tab="tab-online"]')?.addEventListener('click', () 
     else if (fonte === 'apibible') apibibleInit();
     else if (fonte === 'perseus') percLoadCatalog();
   }
+}, {once: true});
+
+document.querySelector('[data-tab="tab-cuneiforme"]')?.addEventListener('click', () => {
+  cdliLoadObrasNotaveis();
 }, {once: true});

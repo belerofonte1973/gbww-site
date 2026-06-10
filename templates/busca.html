@@ -204,12 +204,27 @@
     {% else %}
     <div class="cdli-header">
       <h2 class="cdli-title">Cuneiform Digital Library Initiative (CDLI)</h2>
-      <p class="cdli-sub">Pesquisa em mais de 340 000 tabletes cuneiformes: Sumério, Acadiano, Babilónico, Hitita, Elamita, Hurrita, Ugarítico e Egípcio.</p>
+      <p class="cdli-sub">Pesquisa em mais de 340 000 tabletes cuneiformes: Sumério, Acadiano, Babilônico, Hitita, Elamita, Hurrita, Ugarítico e Egípcio.
+        O texto é exibido em <b>ATF</b> (ASCII Transliteration Format — notação fonética acadêmica padrão) —
+        <a href="#" onclick="document.getElementById('cdli-atf-note').style.display='block';return false" style="font-size:0.8rem">o que é ATF?</a>
+      </p>
+      <div id="cdli-atf-note" style="display:none;font-size:0.8rem;color:#5a4030;margin-top:4px">
+        O ATF usa nomes de signos em maiúsculas (ex.: <code>AN</code>, <code>KI</code>) e notação numérica especial.
+        Clique em "Ver no CDLI ↗" para ver o tablete com imagem e caracteres cuneiformes originais.
+      </div>
+    </div>
+
+    <!-- Obras notáveis -->
+    <div class="cdli-obras-bar">
+      <span class="cdli-obras-label">Obras notáveis:</span>
+      <div id="cdli-obras-btns" class="cdli-obras-btns">
+        <button class="cdli-obra-btn loading" disabled>Carregando…</button>
+      </div>
     </div>
 
     <div class="busca-bar">
       <input id="cdli-q" type="text" autocomplete="off" spellcheck="false"
-             placeholder="Ex.: Gilgamesh, amor, 𒀭, PN...">
+             placeholder="Ex.: Gilgamesh, Inanna, amor, 𒀭...">
       <select id="cdli-lang">
         {% for code, label in cdli_langs.items() %}
         <option value="{{ code }}">{{ label }}</option>
@@ -223,7 +238,7 @@
       <div class="cdli-list-panel">
         <div class="panel-title">Resultados:</div>
         <ul id="cdli-list"></ul>
-        <div id="cdli-status" class="perc-status">Insira um termo e clique em Pesquisar.</div>
+        <div id="cdli-status" class="perc-status">Selecione uma obra notável ou insira um termo.</div>
       </div>
       <div class="cdli-detail-panel">
         <div id="cdli-detalhe-titulo" class="cdli-detalhe-titulo"><em>(nenhum artefato selecionado)</em></div>
@@ -232,8 +247,9 @@
         <div class="perc-btn-row" style="margin-top:8px">
           <button id="btn-cdli-traduzir" disabled onclick="cdliTraduzir()">🌟 Traduzir →PT</button>
           <button id="btn-cdli-copiar"   disabled onclick="cdliCopiar()">Copiar ATF</button>
+          <a id="btn-cdli-ver" class="btn-like" style="display:none" target="_blank">Ver no CDLI ↗</a>
           {% if pron_ok %}
-          <button id="btn-cdli-pron"     disabled onclick="pronunciarCdliTexto()">🔊 Pronunciar</button>
+          <button id="btn-cdli-pron" disabled onclick="pronunciarCdliTexto()">🔊 Pronunciar</button>
           {% endif %}
         </div>
         <div id="cdli-trans-output" class="perc-trans-output" style="display:none"></div>
