@@ -17,8 +17,10 @@ const S = {
   cdliSel:     null,
   llObras:     [],
   llSelWork:   null,
-  percVozes:   [],
+  percVozes:    [],
   percPronCtrl: null,
+  percLastTxt:  '',
+  percVelTimer: null,
 };
 
 // ── tabs ──────────────────────────────────────────────────────────────────────
@@ -343,10 +345,18 @@ function filterPercVozes(lang) {
   if (vRow) vRow.style.display = lang === 'la' ? '' : 'none';
 }
 
-function pronunciarPercTexto() {
+function onPercVelChange(slider) {
+  document.getElementById('perc-vel-lbl').textContent = slider.value + '%';
+  if (!S.percLastTxt) return;
+  clearTimeout(S.percVelTimer);
+  S.percVelTimer = setTimeout(() => pronunciarPercTexto(S.percLastTxt), 400);
+}
+
+function pronunciarPercTexto(forceTxt) {
   const sel = window.getSelection().toString().trim();
-  const txt = sel || document.getElementById('perc-texto')?.textContent.trim();
+  const txt = forceTxt || sel || document.getElementById('perc-texto')?.textContent.trim();
   if (!txt) return;
+  S.percLastTxt = txt;
   const voz      = document.getElementById('perc-voz')?.value      || 'it-IT-DiegoNeural';
   const variante = document.getElementById('perc-variante')?.value  || 'classico';
   const vel      = parseInt(document.getElementById('perc-vel')?.value || '0', 10);

@@ -89,7 +89,7 @@
           </select>
           <label>Velocidade:
             <input id="perc-vel" type="range" min="-50" max="50" value="0" style="width:80px"
-              oninput="document.getElementById('perc-vel-lbl').textContent=this.value+'%'">
+              oninput="onPercVelChange(this)">
             <span id="perc-vel-lbl">0%</span>
           </label>
           <button onclick="pararPercPronuncia()" title="Parar">⏹</button>
