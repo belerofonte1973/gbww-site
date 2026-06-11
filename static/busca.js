@@ -344,6 +344,8 @@ document.getElementById('gemini-key-input')?.addEventListener('keydown', e => {
 
 function percLoadCatalog(forcar = false) {
   const lingua = document.getElementById('perc-lingua').value;
+  syncAlpheiosLang('perseus');
+  if (window._alpheiosEmbed) window._alpheiosEmbed.activate();
   const list   = document.getElementById('perc-works');
   list.innerHTML = '<li class="loading">A carregar…</li>';
   document.getElementById('perc-cat-status').textContent = '⏳ A carregar catálogo…';
@@ -512,6 +514,19 @@ function setPercBtn(id, enabled) {
 
 // ── Textos Online: fonte dispatcher ──────────────────────────────────────────
 
+function syncAlpheiosLang(fonte) {
+  const textoEl = document.getElementById('perc-texto');
+  if (!textoEl) return;
+  if (fonte === 'll') {
+    textoEl.setAttribute('lang', 'lat');
+  } else if (fonte === 'perseus') {
+    const lingua = document.getElementById('perc-lingua')?.value || 'grc';
+    textoEl.setAttribute('lang', lingua);
+  } else {
+    textoEl.removeAttribute('lang');
+  }
+}
+
 function onlineFonte() {
   return document.getElementById('online-fonte')?.value || 'perseus';
 }
@@ -525,10 +540,7 @@ function onlineFonteChange() {
 
   const textoEl = document.getElementById('perc-texto');
   textoEl.classList.toggle('rtl', fonte !== 'perseus' && fonte !== 'll');
-  if (fonte === 'll') textoEl.setAttribute('lang', 'lat');
-  else if (fonte === 'perseus') textoEl.setAttribute('lang', 'grc');
-  else textoEl.removeAttribute('lang');
-  // Re-activate so Alpheios picks up the updated lang attribute
+  syncAlpheiosLang(fonte);
   if (window._alpheiosEmbed) window._alpheiosEmbed.activate();
 
   document.getElementById('perc-obra-sel').innerHTML = '<em>(nenhuma obra seleccionada)</em>';
