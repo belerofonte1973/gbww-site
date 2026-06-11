@@ -8,119 +8,13 @@
 <div class="busca-page">
 
   <nav class="busca-tabs">
-    <button class="btab active" data-tab="tab-busca">🔍 Busca Offline</button>
-    <button class="btab" data-tab="tab-online">🌐 Textos Online</button>
+    <button class="btab active" data-tab="tab-online">🌐 Textos Online</button>
     <button class="btab" data-tab="tab-cuneiforme">𒀭 Cuneiforme / CDLI</button>
     <button class="btab" data-tab="tab-recursos">🏛 Museus e Bases de Dados</button>
   </nav>
 
-  <!-- ═══════════════════════ TAB 1: BUSCA OFFLINE ═══════════════════════════ -->
-  <div id="tab-busca" class="btab-content active">
-
-    {% if not busca_ok %}
-    <p class="busca-warn">⚠ busca_latina.py não encontrado — busca offline indisponível.</p>
-    {% endif %}
-
-    <div class="busca-bar">
-      <input id="q" type="text" autocomplete="off" spellcheck="false"
-             placeholder="amor=exato · amor-=prefixo · -que=sufixo · -amor-=infixo · regex se usar . * [ \">
-      <button id="btn-search" onclick="startSearch()" {% if not busca_ok %}disabled{% endif %}>Buscar</button>
-      <button id="btn-stop"   onclick="stopSearch()" disabled>Parar</button>
-    </div>
-
-    <div class="busca-opts">
-      <label><input id="chk-ignore" type="checkbox" checked> Ignorar maiúsculas</label>
-      <span class="sep"></span>
-      <label>Contexto: <input id="spin-ctx" type="number" value="2" min="0" max="10" style="width:50px"></label>
-      <span class="sep"></span>
-      <label>Máx.: <input id="spin-max" type="number" value="100" min="0" max="9999" style="width:65px"></label>
-      <span class="sep"></span>
-      <span class="corpus-grp">
-        <label><input type="radio" name="corpus" value="0" checked> Latim (ambos)</label>
-        <label><input type="radio" name="corpus" value="1"> Latin Library</label>
-        <label><input type="radio" name="corpus" value="2"> Perseus (lat)</label>
-        <label><input type="radio" name="corpus" value="3"> Open Greek &amp; Latin</label>
-      </span>
-    </div>
-
-    <div class="busca-split">
-      <div class="obras-panel">
-        <div class="panel-title">Obras com ocorrências:</div>
-        <ul id="works-list"></ul>
-      </div>
-      <div id="results" class="results-panel"></div>
-    </div>
-
-    <!-- painel de tradução / dicionário -->
-    <div class="trans-panel">
-      <div class="trans-tools">
-        <label>Língua:
-          <select id="sel-lingua">
-            <option value="la">Latim</option>
-            <option value="grc">Grego Antigo</option>
-            <option value="hbo">Hebraico</option>
-          </select>
-        </label>
-        <span class="sep"></span>
-
-        {% if ollama_models %}
-        <label>Modelo IA:
-          <select id="sel-ollama-modelo">
-            <option value="">(automático)</option>
-            {% for m in ollama_models %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
-          </select>
-        </label>
-        <button onclick="startTranslation('ollama')">🤖 Ollama →PT</button>
-        <button onclick="startTranslation('comentario')">📖 Comentário</button>
-        {% endif %}
-
-        <button onclick="startTranslation('gemini')">🌟 Gemini →PT</button>
-        <select id="sel-gemini-modelo">
-          {% for mid, rotulo in gemini_models %}<option value="{{ mid }}">{{ rotulo }}</option>{% endfor %}
-          {% if not gemini_models %}<option value="gemini-2.0-flash">Gemini Flash 2.0</option>{% endif %}
-        </select>
-        <button onclick="showGeminiKeyDialog()" title="Configurar chave API Gemini">🔑</button>
-
-        <button id="btn-stop-ia" onclick="stopTranslation()">⏹ Parar IA</button>
-        <span class="sep"></span>
-
-        {% if trad_ok %}
-        <label>Dicionário offline:</label>
-        <button onclick="lookupDict('ls')" title="Lewis & Short — latim→inglês">L&amp;S</button>
-        <button onclick="lookupDict('lsj')" title="LSJ — grego→inglês">LSJ</button>
-        <button onclick="lookupDict('collatinus_pt')" title="Collatinus — latim→português">Coll.PT</button>
-        <button onclick="lookupDict('wikt_pt')" title="Wikcionário — latim→português">Wikt.PT</button>
-        <span class="sep"></span>
-        {% endif %}
-
-        {% if pron_ok %}
-        <label>Pronúncia:
-          <select id="sel-voz">
-            {% for v in vozes %}
-            <option value="{{ v[0] }}" data-motor="{{ v[2] }}" data-lingua="{{ v[3] }}">{{ v[1] }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <select id="sel-variante">
-          <option value="classico">Clássico</option>
-          <option value="eclesiastico">Eclesiástico</option>
-          <option value="monotono">Grego monotónico</option>
-        </select>
-        <button onclick="pronunciarSeleccao()">🔊 Pronunciar</button>
-        <button onclick="pararPronuncia()">⏹</button>
-        <audio id="audio-out" controls style="height:28px;vertical-align:middle;display:none"></audio>
-        {% endif %}
-
-        <span class="sep"></span>
-        <button onclick="document.getElementById('trans-output').textContent=''">Limpar</button>
-      </div>
-      <div id="trans-output" class="trans-output"></div>
-    </div>
-  </div><!-- #tab-busca -->
-
-
-  <!-- ═══════════════════════ TAB 2: TEXTOS ONLINE ═══════════════════════════ -->
-  <div id="tab-online" class="btab-content">
+  <!-- ═══════════════════════ TAB: TEXTOS ONLINE ═══════════════════════════ -->
+  <div id="tab-online" class="btab-content active">
     <div class="perc-split">
 
       <!-- painel esquerdo: catálogo -->
@@ -129,6 +23,7 @@
           <label>Fonte:
             <select id="online-fonte" onchange="onlineFonteChange()">
               {% if perseus_ok %}<option value="perseus">Perseus (grc/lat)</option>{% endif %}
+              {% if busca_ok %}<option value="ll">📚 Latin Library (local)</option>{% endif %}
               {% if sefaria_ok %}<option value="sefaria">🕎 Sefaria (heb)</option>{% endif %}
               {% if apibible_ok %}<option value="apibible">📖 API.Bible (heb)</option>{% endif %}
             </select>

@@ -15,6 +15,8 @@ const S = {
   savedSel:    '',
   cdliData:    [],
   cdliSel:     null,
+  llObras:     [],
+  llSelWork:   null,
 };
 
 // ── tabs ──────────────────────────────────────────────────────────────────────
@@ -522,7 +524,7 @@ function onlineFonteChange() {
   if (abWrap) abWrap.style.display = fonte === 'apibible' ? '' : 'none';
 
   const textoEl = document.getElementById('perc-texto');
-  textoEl.classList.toggle('rtl', fonte !== 'perseus');
+  textoEl.classList.toggle('rtl', fonte !== 'perseus' && fonte !== 'll');
 
   document.getElementById('perc-obra-sel').innerHTML = '<em>(nenhuma obra seleccionada)</em>';
   document.getElementById('perc-refs').innerHTML = '';
@@ -531,6 +533,7 @@ function onlineFonteChange() {
   ['btn-perc-obra','btn-perc-traduzir','btn-perc-copiar','btn-perc-pron'].forEach(id => setPercBtn(id, false));
 
   if (fonte === 'perseus') percLoadCatalog();
+  else if (fonte === 'll') llLoadCatalog();
   else if (fonte === 'sefaria') sefariaLoadCatalog();
   else if (fonte === 'apibible') apibibleInit();
 }
@@ -538,6 +541,7 @@ function onlineFonteChange() {
 function reloadCurrentCatalog() {
   const fonte = onlineFonte();
   if (fonte === 'perseus') percLoadCatalog(true);
+  else if (fonte === 'll') llLoadCatalog(true);
   else if (fonte === 'sefaria') sefariaLoadCatalog(true);
   else if (fonte === 'apibible') apibibleLoadBiblias(true);
 }
@@ -546,6 +550,7 @@ function onlineFilter(q) {
   const fonte = onlineFonte();
   if (fonte === 'sefaria') sefariaFilter(q);
   else if (fonte === 'apibible') apibibleFilter(q);
+  else if (fonte === 'll') llFilter(q);
   else percFilter(q);
 }
 
@@ -553,6 +558,7 @@ function onPercRefsChange() {
   const fonte = onlineFonte();
   if (fonte === 'sefaria') sefariaLoadPassagem();
   else if (fonte === 'apibible') apibibleLoadPassagem();
+  else if (fonte === 'll') llLoadTexto();
   else percLoadPassagem();
 }
 
@@ -560,6 +566,7 @@ function onlineObraCompleta() {
   const fonte = onlineFonte();
   if (fonte === 'sefaria') sefariaObraCompleta();
   else if (fonte === 'apibible') { /* não implementado */ }
+  else if (fonte === 'll') llLoadTexto();
   else percObraCompleta();
 }
 
@@ -681,6 +688,77 @@ function sefariaObraCompleta() {
     setPercBtn('btn-perc-obra', true);
     S.percObraES.close(); S.percObraES = null;
   });
+}
+
+// ── Latin Library (local) ─────────────────────────────────────────────────────
+
+function llLoadCatalog(forcar = false) {
+  const list = document.getElementById('perc-works');
+  list.innerHTML = '<li class="loading">A carregar…</li>';
+  document.getElementById('perc-cat-status').textContent = '⏳ A carregar Latin Library…';
+
+  fetch(`/api/online/ll/catalogo?forcar=${forcar ? 1 : 0}`)
+    .then(r => r.json())
+    .then(obras => {
+      if (obras.erro) throw new Error(obras.erro);
+      S.llObras = obras;
+      llFilter('');
+      document.getElementById('perc-cat-status').textContent = `✓ ${obras.length} obras.`;
+    })
+    .catch(err => {
+      list.innerHTML = '';
+      document.getElementById('perc-cat-status').textContent = `⚠ ${err.message}`;
+    });
+}
+
+function llFilter(q) {
+  const list = document.getElementById('perc-works');
+  list.innerHTML = '';
+  const lq = q.toLowerCase();
+  (S.llObras || [])
+    .filter(o => !q || o.author.toLowerCase().includes(lq) || o.work.toLowerCase().includes(lq) || o.title.toLowerCase().includes(lq))
+    .forEach(o => {
+      const li = document.createElement('li');
+      li.textContent = o.author ? `${o.author} — ${o.work || o.title}` : (o.work || o.title || o.id);
+      li.title = o.id;
+      li.addEventListener('click', () => llSelectWork(o));
+      list.appendChild(li);
+    });
+}
+
+function llSelectWork(obra) {
+  S.llSelWork = obra;
+  document.querySelectorAll('.perc-works-list li').forEach(li =>
+    li.classList.toggle('active', li.title === obra.id));
+  const label = obra.author ? `${obra.author} — ${obra.work || obra.title}` : (obra.work || obra.title || obra.id);
+  document.getElementById('perc-obra-sel').innerHTML =
+    `<b>${esc(label)}</b><br><small>${esc(obra.id)}</small>`;
+
+  const refsEl = document.getElementById('perc-refs');
+  refsEl.innerHTML = '<option value="full">Texto completo</option>';
+  setPercBtn('btn-perc-obra', true);
+  document.getElementById('perc-pass-status').textContent = '';
+  llLoadTexto();
+}
+
+function llLoadTexto() {
+  if (!S.llSelWork) return;
+  const textoEl = document.getElementById('perc-texto');
+  textoEl.textContent = '⏳…';
+  document.getElementById('perc-pass-status').textContent = 'A carregar…';
+
+  fetch(`/api/online/ll/texto?id=${enc(S.llSelWork.id)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.erro) throw new Error(d.erro);
+      textoEl.textContent = d.texto;
+      document.getElementById('perc-pass-status').textContent = '';
+      ['btn-perc-traduzir','btn-perc-copiar','btn-perc-pron'].forEach(id => setPercBtn(id, true));
+    })
+    .catch(err => {
+      textoEl.textContent = '';
+      document.getElementById('perc-pass-status').textContent = `⚠ ${err.message}`;
+    });
 }
 
 // ── API.Bible ─────────────────────────────────────────────────────────────────
@@ -1037,14 +1115,14 @@ async function readSSEStream(body, handlers) {
 
 // ── init ──────────────────────────────────────────────────────────────────────
 
-document.querySelector('[data-tab="tab-online"]')?.addEventListener('click', () => {
-  if (!S.percObras.length) {
-    const fonte = onlineFonte();
-    if (fonte === 'sefaria') sefariaLoadCatalog();
-    else if (fonte === 'apibible') apibibleInit();
-    else if (fonte === 'perseus') percLoadCatalog();
-  }
-}, {once: true});
+// Auto-initialize on page load since Textos Online is the default tab
+(function initOnlineTab() {
+  const fonte = onlineFonte();
+  if (fonte === 'll') llLoadCatalog();
+  else if (fonte === 'sefaria') sefariaLoadCatalog();
+  else if (fonte === 'apibible') apibibleInit();
+  else if (fonte === 'perseus') percLoadCatalog();
+})();
 
 document.querySelector('[data-tab="tab-cuneiforme"]')?.addEventListener('click', () => {
   cdliLoadObrasNotaveis();

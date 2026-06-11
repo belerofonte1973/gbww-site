@@ -3,6 +3,12 @@
 
 {% set is_heb = (book.lang == 'heb') %}
 
+{% if not is_heb %}
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/alpheios-components@latest/dist/style/style-components.min.css">
+{% endblock %}
+{% endif %}
+
 {% block content %}
 <div class="reader-wrap">
 
@@ -61,7 +67,7 @@
     {% endif %}
 
     <!-- Text -->
-    <div class="verse-list {% if is_heb %}verse-list--heb{% endif %}"
+    <div class="verse-list {% if is_heb %}verse-list--heb{% endif %}{% if not is_heb %} alpheios-enabled{% endif %}"
          lang="{{ 'he' if is_heb else 'grc' }}"
          {% if is_heb %}dir="rtl"{% endif %}
          data-lang="{{ book.lang }}">
@@ -117,4 +123,21 @@
   });
 })();
 </script>
+{% if not is_heb %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  import('https://cdn.jsdelivr.net/npm/alpheios-embedded@latest/dist/alpheios-embedded.min.js')
+    .then(function() {
+      window.AlpheiosEmbed.importDependencies({ mode: 'cdn' })
+        .then(function(Embedded) {
+          new Embedded({
+            clientId: 'textos-classicos',
+            desktopTriggerEvent: 'dblclick',
+            mobileTriggerEvent: 'longtap',
+          }).activate();
+        });
+    });
+});
+</script>
+{% endif %}
 {% endblock %}

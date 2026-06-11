@@ -632,6 +632,43 @@ def api_apibible_passagem():
         return jsonify({'erro': str(ex)}), 500
 
 
+# ── Latin Library (local) ────────────────────────────────────────────────────
+
+_ll_catalog_cache: list | None = None
+
+@app.route('/api/online/ll/catalogo')
+def api_ll_catalogo():
+    global _ll_catalog_cache
+    forcar = request.args.get('forcar', '0') == '1'
+    if not _BUSCA_OK:
+        return jsonify({'erro': 'busca_latina.py não disponível'}), 503
+    if not LATIN_LIB.exists():
+        return jsonify({'erro': f'Latin Library não encontrada em {LATIN_LIB}'}), 503
+    if _ll_catalog_cache is None or forcar:
+        obras = []
+        for path in sorted(LATIN_LIB.rglob('*.txt')):
+            rel = str(path.relative_to(LATIN_LIB))
+            author, work = label_ll(path)
+            title = first_line_title(path)
+            obras.append({'id': rel, 'author': author, 'work': work, 'title': title})
+        _ll_catalog_cache = obras
+    return jsonify(_ll_catalog_cache)
+
+
+@app.route('/api/online/ll/texto')
+def api_ll_texto():
+    if not _BUSCA_OK:
+        return jsonify({'erro': 'busca_latina.py não disponível'}), 503
+    rel = request.args.get('id', '').strip()
+    if not rel or '..' in rel:
+        return jsonify({'erro': 'ID inválido'}), 400
+    path = LATIN_LIB / rel
+    if not path.exists() or not path.is_file():
+        return jsonify({'erro': 'Obra não encontrada'}), 404
+    lines = read_latin_lib(path)
+    return jsonify({'texto': ''.join(lines)})
+
+
 # ── CDLI (Cuneiform Digital Library) ─────────────────────────────────────────
 
 @app.route('/api/cdli/pesquisar')
