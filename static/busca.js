@@ -525,6 +525,9 @@ function onlineFonteChange() {
 
   const textoEl = document.getElementById('perc-texto');
   textoEl.classList.toggle('rtl', fonte !== 'perseus' && fonte !== 'll');
+  textoEl.classList.toggle('alpheios-enabled', fonte === 'll');
+  if (fonte === 'll') textoEl.setAttribute('lang', 'lat');
+  else textoEl.removeAttribute('lang');
 
   document.getElementById('perc-obra-sel').innerHTML = '<em>(nenhuma obra seleccionada)</em>';
   document.getElementById('perc-refs').innerHTML = '';

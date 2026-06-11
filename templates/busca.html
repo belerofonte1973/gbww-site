@@ -2,6 +2,7 @@
 {% block title %}Busca Greco-Latina — Textos Clássicos{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='busca.css') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/alpheios-components@latest/dist/style/style-components.min.css">
 {% endblock %}
 
 {% block content %}
@@ -294,4 +295,20 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='busca.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  import('https://cdn.jsdelivr.net/npm/alpheios-embedded@latest/dist/alpheios-embedded.min.js')
+    .then(function() {
+      window.AlpheiosEmbed.importDependencies({ mode: 'cdn' })
+        .then(function(Embedded) {
+          window._alpheiosEmbed = new Embedded({
+            clientId: 'textos-classicos',
+            desktopTriggerEvent: 'dblclick',
+            mobileTriggerEvent: 'longtap',
+          });
+          window._alpheiosEmbed.activate();
+        });
+    });
+});
+</script>
 {% endblock %}
