@@ -240,7 +240,8 @@ def pronunciar(texto: str,
                voz: str        = VOZES_DEFAULT_CLASSICO,
                variante: str   = 'classico',
                velocidade: int = 0,
-               tom: int        = 0) -> None:
+               tom: int        = 0,
+               saida: str      = None) -> str:
     """
     Reproduz texto latino ou grego com o motor e voz indicados.
 
@@ -251,6 +252,8 @@ def pronunciar(texto: str,
     variante   : 'classico' | 'eclesiastico'  (só relevante para latim)
     velocidade : ajuste de velocidade em % relativa (-50 a +50); 0 = padrão
     tom        : apenas para espeak-ng (0-99)
+    saida      : se fornecido, grava áudio neste caminho em vez de reproduzir
+                 localmente; devolve 'mp3' ou 'wav' conforme o formato gerado
     """
     global _proc_tts, _proc_audio
     parar()
@@ -274,6 +277,13 @@ def pronunciar(texto: str,
     if motor == "espeak":
         # espeak-ng: offline
         spd = 130 + int(velocidade * 0.5)
+        if saida:
+            subprocess.run(
+                [_ESPEAK, '-v', voz, '-s', str(max(70, min(220, spd))),
+                 '-p', str(max(0, min(99, 50 + tom))), '-w', saida, texto_proc],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            return 'wav'
         _proc_tts = subprocess.Popen(
             [_ESPEAK, '-v', voz, '-s', str(max(70, min(220, spd))),
              '-p', str(max(0, min(99, 50 + tom))), texto_proc],
@@ -301,12 +311,17 @@ def pronunciar(texto: str,
         _proc_tts.communicate(input=texto_proc.encode())
         ret_code = _proc_tts.returncode
         _proc_tts = None
-        if ret_code == 0 and _FFPLAY:
-            _proc_audio = subprocess.Popen(
-                [_FFPLAY, '-nodisp', '-autoexit', tmp.name],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
+        if ret_code == 0:
+            if saida:
+                shutil.copy(tmp.name, saida)
+                Path(tmp.name).unlink(missing_ok=True)
+                return 'wav'
+            elif _FFPLAY:
+                _proc_audio = subprocess.Popen(
+                    [_FFPLAY, '-nodisp', '-autoexit', tmp.name],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
     else:
         # edge-tts: gera MP3 e reproduz com ffplay
         if not Path(_EDGE_TTS).exists():
@@ -335,12 +350,17 @@ def pronunciar(texto: str,
         ret_code = _proc_tts.returncode
         _proc_tts = None          # edge-tts concluiu; liberta o handle
 
-        if ret_code == 0 and _FFPLAY:
-            _proc_audio = subprocess.Popen(
-                [_FFPLAY, '-nodisp', '-autoexit', tmp.name],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
+        if ret_code == 0:
+            if saida:
+                shutil.copy(tmp.name, saida)
+                Path(tmp.name).unlink(missing_ok=True)
+                return 'mp3'
+            elif _FFPLAY:
+                _proc_audio = subprocess.Popen(
+                    [_FFPLAY, '-nodisp', '-autoexit', tmp.name],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────

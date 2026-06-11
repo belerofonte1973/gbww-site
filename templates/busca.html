@@ -79,6 +79,23 @@
           {% endif %}
           <span id="perc-pass-status" class="perc-status"></span>
         </div>
+        {% if pron_ok %}
+        <div id="perc-pron-row" class="perc-pron-row" style="display:none">
+          <select id="perc-voz"></select>
+          <select id="perc-variante">
+            <option value="classico">Clássico</option>
+            <option value="eclesiastico">Eclesiástico</option>
+            <option value="monotono">Monotónico</option>
+          </select>
+          <label>Velocidade:
+            <input id="perc-vel" type="range" min="-50" max="50" value="0" style="width:80px"
+              oninput="document.getElementById('perc-vel-lbl').textContent=this.value+'%'">
+            <span id="perc-vel-lbl">0%</span>
+          </label>
+          <button onclick="pararPercPronuncia()" title="Parar">⏹</button>
+          <audio id="perc-audio" controls style="height:24px;vertical-align:middle;display:none"></audio>
+        </div>
+        {% endif %}
         <div id="perc-trans-output" class="perc-trans-output" style="display:none"></div>
       </div>
     </div>

@@ -17,6 +17,8 @@ const S = {
   cdliSel:     null,
   llObras:     [],
   llSelWork:   null,
+  percVozes:   [],
+  percPronCtrl: null,
 };
 
 // ── tabs ──────────────────────────────────────────────────────────────────────
@@ -301,10 +303,94 @@ function pararPronuncia() {
   if (audio) { audio.pause(); audio.currentTime = 0; }
 }
 
+// ── pronúncia Textos Online ───────────────────────────────────────────────────
+
+function loadPercVozes() {
+  fetch('/api/pronunciar/vozes')
+    .then(r => r.json())
+    .then(vozes => {
+      S.percVozes = vozes;
+      filterPercVozes(langFromFonte());
+    })
+    .catch(() => {});
+}
+
+function langFromFonte() {
+  const fonte = onlineFonte();
+  if (fonte === 'll') return 'la';
+  if (fonte === 'perseus') return document.getElementById('perc-lingua')?.value === 'lat' ? 'la' : 'grc';
+  if (fonte === 'sefaria' || fonte === 'apibible') return 'hbo';
+  return 'la';
+}
+
+function filterPercVozes(lang) {
+  const sel = document.getElementById('perc-voz');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '';
+  (S.percVozes || [])
+    .filter(v => v.lingua === lang && v.motor === 'edge')
+    .forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = v.label;
+      sel.appendChild(opt);
+    });
+  // se a voz anterior ainda existe, mantê-la
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  // mostrar/ocultar variante (só relevante para latim)
+  const vRow = document.getElementById('perc-variante');
+  if (vRow) vRow.style.display = lang === 'la' ? '' : 'none';
+}
+
 function pronunciarPercTexto() {
   const sel = window.getSelection().toString().trim();
   const txt = sel || document.getElementById('perc-texto')?.textContent.trim();
-  pronunciar(txt);
+  if (!txt) return;
+  const voz      = document.getElementById('perc-voz')?.value      || 'it-IT-DiegoNeural';
+  const variante = document.getElementById('perc-variante')?.value  || 'classico';
+  const vel      = parseInt(document.getElementById('perc-vel')?.value || '0', 10);
+  const audio    = document.getElementById('perc-audio');
+  const btn      = document.getElementById('btn-perc-pron');
+
+  if (S.percPronCtrl) { S.percPronCtrl.abort(); S.percPronCtrl = null; }
+  S.percPronCtrl = new AbortController();
+
+  if (btn) btn.disabled = true;
+  document.getElementById('perc-pass-status').textContent = '🔊 A gerar…';
+
+  fetch('/api/pronunciar', {
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify({texto: txt.slice(0, 3000), voz, variante, velocidade: vel}),
+    signal:  S.percPronCtrl.signal,
+  })
+    .then(r => {
+      if (!r.ok) return r.json().then(d => { throw new Error(d.erro || r.statusText); });
+      return r.blob();
+    })
+    .then(blob => {
+      if (audio) {
+        audio.style.display = 'inline';
+        audio.src = URL.createObjectURL(blob);
+        audio.play();
+      }
+      document.getElementById('perc-pass-status').textContent = '';
+    })
+    .catch(err => {
+      if (err.name !== 'AbortError')
+        document.getElementById('perc-pass-status').textContent = `⚠ ${err.message}`;
+    })
+    .finally(() => {
+      S.percPronCtrl = null;
+      if (btn) btn.disabled = false;
+    });
+}
+
+function pararPercPronuncia() {
+  if (S.percPronCtrl) { S.percPronCtrl.abort(); S.percPronCtrl = null; }
+  const audio = document.getElementById('perc-audio');
+  if (audio) { audio.pause(); audio.currentTime = 0; }
 }
 
 function pronunciarCdliTexto() {
@@ -510,6 +596,10 @@ function percCopiar() {
 function setPercBtn(id, enabled) {
   const el = document.getElementById(id);
   if (el) el.disabled = !enabled;
+  if (id === 'btn-perc-pron') {
+    const row = document.getElementById('perc-pron-row');
+    if (row) row.style.display = enabled ? '' : 'none';
+  }
 }
 
 // ── Textos Online: fonte dispatcher ──────────────────────────────────────────
@@ -525,6 +615,7 @@ function syncAlpheiosLang(fonte) {
   } else {
     textoEl.removeAttribute('lang');
   }
+  filterPercVozes(langFromFonte());
 }
 
 function onlineFonte() {
@@ -1134,6 +1225,7 @@ async function readSSEStream(body, handlers) {
 
 // Auto-initialize on page load since Textos Online is the default tab
 (function initOnlineTab() {
+  loadPercVozes();
   const fonte = onlineFonte();
   if (fonte === 'll') llLoadCatalog();
   else if (fonte === 'sefaria') sefariaLoadCatalog();

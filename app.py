@@ -367,20 +367,24 @@ def api_dict(fonte):
 def api_pronunciar():
     if not _PRON_OK:
         return jsonify({'erro': 'pronunciar_latim.py não disponível'}), 503
-    data      = request.get_json(force=True, silent=True) or {}
-    texto     = (data.get('texto') or '').strip()
-    voz       = data.get('voz', 'it-IT-DiegoNeural')
-    variante  = data.get('variante', 'classico')
-    velocidade = float(data.get('velocidade', 1.0))
+    data       = request.get_json(force=True, silent=True) or {}
+    texto      = (data.get('texto') or '').strip()
+    voz        = data.get('voz', 'it-IT-DiegoNeural')
+    variante   = data.get('variante', 'classico')
+    velocidade = int(float(data.get('velocidade', 0)))
     if not texto:
         return jsonify({'erro': 'Texto vazio'}), 400
     try:
         with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
             tmp_path = Path(tmp.name)
-        _pron.pronunciar(texto, voz=voz, variante=variante,
-                         velocidade=velocidade, saida=str(tmp_path))
-        return send_file(tmp_path, mimetype='audio/mpeg',
-                         as_attachment=False, download_name='audio.mp3')
+        fmt = _pron.pronunciar(texto, voz=voz, variante=variante,
+                               velocidade=velocidade, saida=str(tmp_path))
+        if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+            return jsonify({'erro': 'Falha ao gerar áudio'}), 500
+        mime = 'audio/wav' if fmt == 'wav' else 'audio/mpeg'
+        ext  = 'wav' if fmt == 'wav' else 'mp3'
+        return send_file(tmp_path, mimetype=mime,
+                         as_attachment=False, download_name=f'audio.{ext}')
     except Exception as ex:
         return jsonify({'erro': str(ex)}), 500
 
