@@ -352,6 +352,11 @@ function onPercVelChange(slider) {
   S.percVelTimer = setTimeout(() => pronunciarPercTexto(S.percLastTxt), 400);
 }
 
+function onPercVozChange() {
+  if (!S.percLastTxt) return;
+  pronunciarPercTexto(S.percLastTxt);
+}
+
 function pronunciarPercTexto(forceTxt) {
   const sel = window.getSelection().toString().trim();
   const txt = forceTxt || sel || document.getElementById('perc-texto')?.textContent.trim();

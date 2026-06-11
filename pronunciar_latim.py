@@ -256,7 +256,8 @@ def pronunciar(texto: str,
                  localmente; devolve 'mp3' ou 'wav' conforme o formato gerado
     """
     global _proc_tts, _proc_audio
-    parar()
+    if not saida:
+        parar()  # só parar reprodução local; pedidos web correm independentemente
 
     # determina o motor e grupo de língua
     voz_info  = next((v for v in VOZES if v[0] == voz), None)
@@ -300,7 +301,7 @@ def pronunciar(texto: str,
         tmp.close()
         # velocidade → length_scale (1.0 = normal; <1 = mais rápido; >1 = mais lento)
         length_scale = max(0.5, min(2.0, 1.0 - velocidade / 100.0))
-        _proc_tts = subprocess.Popen(
+        proc = subprocess.Popen(
             [_PIPER, '-m', str(model_path),
              '--length-scale', f'{length_scale:.2f}',
              '-f', tmp.name],
@@ -308,9 +309,12 @@ def pronunciar(texto: str,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        _proc_tts.communicate(input=texto_proc.encode())
-        ret_code = _proc_tts.returncode
-        _proc_tts = None
+        if not saida:
+            _proc_tts = proc
+        proc.communicate(input=texto_proc.encode())
+        ret_code = proc.returncode
+        if not saida:
+            _proc_tts = None
         if ret_code == 0:
             if saida:
                 shutil.copy(tmp.name, saida)
@@ -340,15 +344,17 @@ def pronunciar(texto: str,
                     '--text', texto_proc,
                     '--write-media', tmp.name]
 
-        # Usar Popen (não subprocess.run) para que parar() possa matar o processo
-        _proc_tts = subprocess.Popen(
+        proc = subprocess.Popen(
             cmd_edge,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        _proc_tts.wait()          # bloqueia o thread PronunciaThread até gerar o MP3
-        ret_code = _proc_tts.returncode
-        _proc_tts = None          # edge-tts concluiu; liberta o handle
+        if not saida:
+            _proc_tts = proc
+        proc.wait()
+        ret_code = proc.returncode
+        if not saida:
+            _proc_tts = None
 
         if ret_code == 0:
             if saida:
