@@ -626,6 +626,23 @@ function percObraCompleta() {
   });
 }
 
+function _setTradBusy(busy) {
+  const tradBtn   = document.getElementById('btn-perc-traduzir');
+  const pararBtn  = document.getElementById('btn-parar-trad');
+  const guardarBtn = document.getElementById('btn-guardar-trad');
+  if (tradBtn)  tradBtn.disabled  = busy;
+  if (pararBtn) pararBtn.disabled = !busy;
+  if (busy && guardarBtn) guardarBtn.disabled = true;
+}
+
+function pararTraducao() {
+  if (S.transCtrl) { S.transCtrl.abort(); S.transCtrl = null; }
+  _setTradBusy(false);
+  const outEl = document.getElementById('perc-trans-output');
+  if (outEl && outEl.textContent && !outEl.textContent.startsWith('⚠'))
+    outEl.textContent += '\n[interrompido]';
+}
+
 async function percTraduzir() {
   const sel   = window.getSelection().toString().trim();
   const texto = sel || document.getElementById('perc-texto').textContent.trim();
@@ -638,8 +655,7 @@ async function percTraduzir() {
   const motor  = document.getElementById('perc-motor')?.value || 'gemini';
   const modelo = document.getElementById('perc-modelo')?.value || '';
 
-  const guardarBtn = document.getElementById('btn-guardar-trad');
-  if (guardarBtn) guardarBtn.disabled = true;
+  _setTradBusy(true);
 
   // ── interlinear offline ───────────────────────────────────────────────────
   if (motor === 'interlinear') {
@@ -652,11 +668,15 @@ async function percTraduzir() {
         body:    JSON.stringify({texto, lingua}),
       });
       const d = await resp.json();
-      if (d.erro) { outEl.textContent = `⚠ ${d.erro}`; return; }
-      renderInterlinear(d, outEl);
-      if (guardarBtn) guardarBtn.disabled = false;
+      if (d.erro) { outEl.textContent = `⚠ ${d.erro}`; }
+      else {
+        renderInterlinear(d, outEl);
+        document.getElementById('btn-guardar-trad').disabled = false;
+      }
     } catch (err) {
       outEl.textContent = `⚠ ${err.message}`;
+    } finally {
+      _setTradBusy(false);
     }
     return;
   }
@@ -682,10 +702,13 @@ async function percTraduzir() {
       chunk: d => { outEl.textContent += d.text; outEl.scrollTop = outEl.scrollHeight; },
       erro:  d => { outEl.textContent = `⚠ ${d.msg}`; },
     });
-    if (guardarBtn && !outEl.textContent.startsWith('⚠'))
-      guardarBtn.disabled = false;
+    if (!outEl.textContent.startsWith('⚠'))
+      document.getElementById('btn-guardar-trad').disabled = false;
   } catch (err) {
     if (err.name !== 'AbortError') outEl.textContent = `⚠ ${err.message}`;
+  } finally {
+    _setTradBusy(false);
+    S.transCtrl = null;
   }
 }
 

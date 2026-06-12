@@ -417,6 +417,9 @@
 #btn-perc-traduzir { font-weight: 600; background: #d8e8d4; border-color: #aac4a5; }
 #btn-perc-traduzir:hover    { background: #c8dcc4; }
 #btn-perc-traduzir:disabled { background: #e8e2d8; border-color: #c4b9aa; }
+#btn-parar-trad { background: #f4dada; border-color: #d4a0a0; color: #8a1a1a; font-weight: 600; }
+#btn-parar-trad:hover:not(:disabled) { background: #ecc8c8; }
+#btn-parar-trad:disabled { background: #e8e2d8; border-color: #c4b9aa; color: inherit; }
 #btn-trans-key { padding: 0 8px; font-size: 1rem; }
 
 /* ── interlinear output ─────────────────────────────────────────────────────── */
