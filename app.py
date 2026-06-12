@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from flask import Flask, render_template, request, g, abort, jsonify, send_file, Response, stream_with_context
 
-_SETTINGS_FILE = Path.home() / ".config" / "busca_latina" / "settings.json"
+_SETTINGS_FILE = Path(__file__).parent / "config" / "settings.json"
 
 def _ler_settings() -> dict:
     try:

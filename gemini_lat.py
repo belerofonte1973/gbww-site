@@ -22,7 +22,7 @@ import requests
 from pathlib import Path
 from typing import Iterator
 
-SETTINGS_FILE = Path.home() / ".config" / "busca_latina" / "settings.json"
+SETTINGS_FILE = Path(__file__).parent / "config" / "settings.json"
 
 MODELOS_GEMINI = [
     ("gemini-2.5-flash",       "Flash 2.5  — melhor qualidade, gratuito"),
