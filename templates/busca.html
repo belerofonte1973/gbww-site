@@ -23,10 +23,11 @@
         <div class="perc-lang-row">
           <label>Fonte:
             <select id="online-fonte" onchange="onlineFonteChange()">
-              {% if perseus_ok %}<option value="perseus">Perseus (grc/lat)</option>{% endif %}
-              {% if busca_ok %}<option value="ll">📚 Latin Library (local)</option>{% endif %}
-              {% if sefaria_ok %}<option value="sefaria">🕎 Sefaria (heb)</option>{% endif %}
-              {% if apibible_ok %}<option value="apibible">📖 API.Bible (heb)</option>{% endif %}
+              <option value="perseus">Perseus (grc/lat)</option>
+              <option value="ll">📚 Latin Library</option>
+              <option value="phi">📜 PHI Latin</option>
+              <option value="sefaria">🕎 Sefaria (heb)</option>
+              <option value="apibible">📖 API.Bible (heb)</option>
             </select>
           </label>
           <span id="perc-lingua-wrap">
@@ -102,9 +103,11 @@
 
     <div class="perc-footer">
       <small>
-        {% if perseus_ok %}Perseus Project · {% endif %}
-        {% if sefaria_ok %}Sefaria · acesso livre · <a href="https://www.sefaria.org" target="_blank">sefaria.org</a> · {% endif %}
-        {% if apibible_ok %}API.Bible · chave gratuita em <a href="https://scripture.api.bible" target="_blank">scripture.api.bible</a>{% endif %}
+        <a href="https://www.perseus.tufts.edu" target="_blank">Perseus Project</a> ·
+        <a href="https://www.thelatinlibrary.com" target="_blank">The Latin Library</a> ·
+        <a href="https://latin.packhum.org" target="_blank">PHI Latin Texts</a> ·
+        <a href="https://www.sefaria.org" target="_blank">Sefaria</a> ·
+        API.Bible · chave gratuita em <a href="https://scripture.api.bible" target="_blank">scripture.api.bible</a>
       </small>
     </div>
   </div><!-- #tab-online -->

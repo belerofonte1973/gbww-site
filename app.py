@@ -84,6 +84,18 @@ try:
 except Exception:
     _CDLI_OK = False
 
+try:
+    import ll_online_api as _llonline
+    _LLONLINE_OK = True
+except Exception:
+    _LLONLINE_OK = False
+
+try:
+    import phi_api as _phi
+    _PHI_OK = True
+except Exception:
+    _PHI_OK = False
+
 import csv as _csv
 
 # ── OGL metadata ─────────────────────────────────────────────────────────────
@@ -146,15 +158,9 @@ def all_lit_texts():
     return get_db().execute('SELECT * FROM lit_texts ORDER BY lang, id').fetchall()
 
 
-# ── index ─────────────────────────────────────────────────────────────────────
-
-@app.route('/')
-def index():
-    return render_template('index.html', books=all_books(), lit_texts=all_lit_texts())
-
-
 # ── Busca Greco-Latina ────────────────────────────────────────────────────────
 
+@app.route('/')
 @app.route('/busca')
 def busca():
     return render_template(
@@ -172,6 +178,8 @@ def busca():
         trad_ok=_TRAD_OK,
         cdli_ok=_CDLI_OK,
         cdli_langs=_cdli.LANG_LABELS if _CDLI_OK else {},
+        llonline_ok=_LLONLINE_OK,
+        phi_ok=_PHI_OK,
     )
 
 
@@ -636,41 +644,56 @@ def api_apibible_passagem():
         return jsonify({'erro': str(ex)}), 500
 
 
-# ── Latin Library (local) ────────────────────────────────────────────────────
-
-_ll_catalog_cache: list | None = None
+# ── Latin Library (online) ────────────────────────────────────────────────────
 
 @app.route('/api/online/ll/catalogo')
 def api_ll_catalogo():
-    global _ll_catalog_cache
+    if not _LLONLINE_OK:
+        return jsonify({'erro': 'll_online_api.py não disponível'}), 503
     forcar = request.args.get('forcar', '0') == '1'
-    if not _BUSCA_OK:
-        return jsonify({'erro': 'busca_latina.py não disponível'}), 503
-    if not LATIN_LIB.exists():
-        return jsonify({'erro': f'Latin Library não encontrada em {LATIN_LIB}'}), 503
-    if _ll_catalog_cache is None or forcar:
-        obras = []
-        for path in sorted(LATIN_LIB.rglob('*.txt')):
-            rel = str(path.relative_to(LATIN_LIB))
-            author, work = label_ll(path)
-            title = first_line_title(path)
-            obras.append({'id': rel, 'author': author, 'work': work, 'title': title})
-        _ll_catalog_cache = obras
-    return jsonify(_ll_catalog_cache)
+    try:
+        return jsonify(_llonline.obter_catalogo(forcar=forcar))
+    except Exception as ex:
+        return jsonify({'erro': str(ex)}), 500
 
 
 @app.route('/api/online/ll/texto')
 def api_ll_texto():
-    if not _BUSCA_OK:
-        return jsonify({'erro': 'busca_latina.py não disponível'}), 503
-    rel = request.args.get('id', '').strip()
-    if not rel or '..' in rel:
-        return jsonify({'erro': 'ID inválido'}), 400
-    path = LATIN_LIB / rel
-    if not path.exists() or not path.is_file():
-        return jsonify({'erro': 'Obra não encontrada'}), 404
-    lines = read_latin_lib(path)
-    return jsonify({'texto': ''.join(lines)})
+    if not _LLONLINE_OK:
+        return jsonify({'erro': 'll_online_api.py não disponível'}), 503
+    url = request.args.get('id', '').strip()
+    if not url or not url.startswith('http'):
+        return jsonify({'erro': 'URL inválido'}), 400
+    try:
+        return jsonify({'texto': _llonline.obter_texto(url)})
+    except Exception as ex:
+        return jsonify({'erro': str(ex)}), 500
+
+
+# ── PHI Latin ─────────────────────────────────────────────────────────────────
+
+@app.route('/api/phi/catalogo')
+def api_phi_catalogo():
+    if not _PHI_OK:
+        return jsonify({'erro': 'phi_api.py não disponível'}), 503
+    forcar = request.args.get('forcar', '0') == '1'
+    try:
+        return jsonify(_phi.obter_catalogo(forcar=forcar))
+    except Exception as ex:
+        return jsonify({'erro': str(ex)}), 500
+
+
+@app.route('/api/phi/texto')
+def api_phi_texto():
+    if not _PHI_OK:
+        return jsonify({'erro': 'phi_api.py não disponível'}), 503
+    urn = request.args.get('urn', '').strip()
+    if not urn or not urn.startswith('/'):
+        return jsonify({'erro': 'URN inválido'}), 400
+    try:
+        return jsonify({'texto': _phi.obter_texto(urn)})
+    except Exception as ex:
+        return jsonify({'erro': str(ex)}), 500
 
 
 # ── CDLI (Cuneiform Digital Library) ─────────────────────────────────────────

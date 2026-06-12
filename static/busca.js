@@ -319,7 +319,7 @@ function loadPercVozes() {
 
 function langFromFonte() {
   const fonte = onlineFonte();
-  if (fonte === 'll') return 'la';
+  if (fonte === 'll' || fonte === 'phi') return 'la';
   if (fonte === 'perseus') return document.getElementById('perc-lingua')?.value === 'lat' ? 'la' : 'grc';
   if (fonte === 'sefaria' || fonte === 'apibible') return 'hbo';
   return 'la';
@@ -622,7 +622,7 @@ function setPercBtn(id, enabled) {
 function syncAlpheiosLang(fonte) {
   const textoEl = document.getElementById('perc-texto');
   if (!textoEl) return;
-  if (fonte === 'll') {
+  if (fonte === 'll' || fonte === 'phi') {
     textoEl.setAttribute('lang', 'lat');
   } else if (fonte === 'perseus') {
     const lingua = document.getElementById('perc-lingua')?.value || 'grc';
@@ -657,6 +657,7 @@ function onlineFonteChange() {
 
   if (fonte === 'perseus') percLoadCatalog();
   else if (fonte === 'll') llLoadCatalog();
+  else if (fonte === 'phi') phiLoadCatalog();
   else if (fonte === 'sefaria') sefariaLoadCatalog();
   else if (fonte === 'apibible') apibibleInit();
 }
@@ -665,6 +666,7 @@ function reloadCurrentCatalog() {
   const fonte = onlineFonte();
   if (fonte === 'perseus') percLoadCatalog(true);
   else if (fonte === 'll') llLoadCatalog(true);
+  else if (fonte === 'phi') phiLoadCatalog(true);
   else if (fonte === 'sefaria') sefariaLoadCatalog(true);
   else if (fonte === 'apibible') apibibleLoadBiblias(true);
 }
@@ -674,6 +676,7 @@ function onlineFilter(q) {
   if (fonte === 'sefaria') sefariaFilter(q);
   else if (fonte === 'apibible') apibibleFilter(q);
   else if (fonte === 'll') llFilter(q);
+  else if (fonte === 'phi') phiFilter(q);
   else percFilter(q);
 }
 
@@ -682,6 +685,7 @@ function onPercRefsChange() {
   if (fonte === 'sefaria') sefariaLoadPassagem();
   else if (fonte === 'apibible') apibibleLoadPassagem();
   else if (fonte === 'll') llLoadTexto();
+  else if (fonte === 'phi') phiLoadTexto();
   else percLoadPassagem();
 }
 
@@ -690,6 +694,7 @@ function onlineObraCompleta() {
   if (fonte === 'sefaria') sefariaObraCompleta();
   else if (fonte === 'apibible') { /* não implementado */ }
   else if (fonte === 'll') llLoadTexto();
+  else if (fonte === 'phi') phiLoadTexto();
   else percObraCompleta();
 }
 
@@ -813,12 +818,13 @@ function sefariaObraCompleta() {
   });
 }
 
-// ── Latin Library (local) ─────────────────────────────────────────────────────
+// ── Latin Library (online) ────────────────────────────────────────────────────
 
 function llLoadCatalog(forcar = false) {
   const list = document.getElementById('perc-works');
   list.innerHTML = '<li class="loading">A carregar…</li>';
   document.getElementById('perc-cat-status').textContent = '⏳ A carregar Latin Library…';
+  syncAlpheiosLang('ll');
 
   fetch(`/api/online/ll/catalogo?forcar=${forcar ? 1 : 0}`)
     .then(r => r.json())
@@ -839,10 +845,10 @@ function llFilter(q) {
   list.innerHTML = '';
   const lq = q.toLowerCase();
   (S.llObras || [])
-    .filter(o => !q || o.author.toLowerCase().includes(lq) || o.work.toLowerCase().includes(lq) || o.title.toLowerCase().includes(lq))
+    .filter(o => !q || o.display.toLowerCase().includes(lq))
     .forEach(o => {
       const li = document.createElement('li');
-      li.textContent = o.author ? `${o.author} — ${o.work || o.title}` : (o.work || o.title || o.id);
+      li.textContent = o.display;
       li.title = o.id;
       li.addEventListener('click', () => llSelectWork(o));
       list.appendChild(li);
@@ -853,9 +859,8 @@ function llSelectWork(obra) {
   S.llSelWork = obra;
   document.querySelectorAll('.perc-works-list li').forEach(li =>
     li.classList.toggle('active', li.title === obra.id));
-  const label = obra.author ? `${obra.author} — ${obra.work || obra.title}` : (obra.work || obra.title || obra.id);
   document.getElementById('perc-obra-sel').innerHTML =
-    `<b>${esc(label)}</b><br><small>${esc(obra.id)}</small>`;
+    `<b>${esc(obra.display)}</b><br><small>${esc(obra.id)}</small>`;
 
   const refsEl = document.getElementById('perc-refs');
   refsEl.innerHTML = '<option value="full">Texto completo</option>';
@@ -875,8 +880,9 @@ function llLoadTexto() {
     .then(d => {
       if (d.erro) throw new Error(d.erro);
       textoEl.textContent = d.texto;
-      document.getElementById('perc-pass-status').textContent = '';
-      ['btn-perc-traduzir','btn-perc-copiar','btn-perc-pron'].forEach(id => setPercBtn(id, true));
+      const words = (d.texto || '').trim().split(/\s+/).filter(Boolean).length;
+      document.getElementById('perc-pass-status').textContent = `✓ ${words} palavras.`;
+      ['btn-perc-traduzir', 'btn-perc-copiar', 'btn-perc-pron'].forEach(id => setPercBtn(id, true));
     })
     .catch(err => {
       textoEl.textContent = '';
@@ -1031,6 +1037,79 @@ document.getElementById('apibible-key-input')?.addEventListener('keydown', e => 
   if (e.key === 'Enter') saveApibibleKey();
   if (e.key === 'Escape') closeApibibleKeyDialog();
 });
+
+// ── PHI Latin ─────────────────────────────────────────────────────────────────
+
+function phiLoadCatalog(forcar = false) {
+  const list = document.getElementById('perc-works');
+  list.innerHTML = '<li class="loading">A carregar…</li>';
+  document.getElementById('perc-cat-status').textContent = '⏳ A carregar PHI Latin…';
+  syncAlpheiosLang('phi');
+
+  fetch(`/api/phi/catalogo?forcar=${forcar ? 1 : 0}`)
+    .then(r => r.json())
+    .then(obras => {
+      if (obras.erro) throw new Error(obras.erro);
+      S.percObras = obras;
+      phiFilter('');
+      document.getElementById('perc-cat-status').textContent = `✓ ${obras.length} entradas.`;
+    })
+    .catch(err => {
+      list.innerHTML = '';
+      document.getElementById('perc-cat-status').textContent = `⚠ ${err.message}`;
+    });
+}
+
+function phiFilter(q) {
+  const list = document.getElementById('perc-works');
+  list.innerHTML = '';
+  const lq = q.toLowerCase();
+  (S.percObras || [])
+    .filter(o => !q || o.display.toLowerCase().includes(lq))
+    .forEach(o => {
+      const li = document.createElement('li');
+      li.textContent = o.display;
+      li.title = o.urn || o.id;
+      li.addEventListener('click', () => phiSelectWork(o));
+      list.appendChild(li);
+    });
+}
+
+function phiSelectWork(obra) {
+  S.llSelWork = obra;
+  document.querySelectorAll('.perc-works-list li').forEach(li =>
+    li.classList.toggle('active', li.title === (obra.urn || obra.id)));
+  document.getElementById('perc-obra-sel').innerHTML =
+    `<b>${esc(obra.display)}</b><br><small>${esc(obra.urn || obra.id)}</small>`;
+
+  const refsEl = document.getElementById('perc-refs');
+  refsEl.innerHTML = '<option value="full">Texto completo</option>';
+  document.getElementById('perc-pass-status').textContent = '';
+  phiLoadTexto(obra.urn || obra.id);
+}
+
+function phiLoadTexto(urnOverride) {
+  const urn = urnOverride || (S.llSelWork && (S.llSelWork.urn || S.llSelWork.id));
+  if (!urn) return;
+  const textoEl = document.getElementById('perc-texto');
+  textoEl.textContent = '⏳…';
+  document.getElementById('perc-pass-status').textContent = 'A carregar…';
+
+  fetch(`/api/phi/texto?urn=${enc(urn)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.erro) throw new Error(d.erro);
+      textoEl.textContent = d.texto;
+      const words = (d.texto || '').trim().split(/\s+/).filter(Boolean).length;
+      document.getElementById('perc-pass-status').textContent = `✓ ${words} palavras.`;
+      ['btn-perc-traduzir', 'btn-perc-copiar', 'btn-perc-pron'].forEach(id => setPercBtn(id, true));
+      setPercBtn('btn-perc-obra', true);
+    })
+    .catch(err => {
+      textoEl.textContent = '';
+      document.getElementById('perc-pass-status').textContent = `⚠ ${err.message}`;
+    });
+}
 
 // ── CDLI ──────────────────────────────────────────────────────────────────────
 
@@ -1242,10 +1321,11 @@ async function readSSEStream(body, handlers) {
 (function initOnlineTab() {
   loadPercVozes();
   const fonte = onlineFonte();
-  if (fonte === 'll') llLoadCatalog();
+  if (fonte === 'perseus') percLoadCatalog();
+  else if (fonte === 'll') llLoadCatalog();
+  else if (fonte === 'phi') phiLoadCatalog();
   else if (fonte === 'sefaria') sefariaLoadCatalog();
   else if (fonte === 'apibible') apibibleInit();
-  else if (fonte === 'perseus') percLoadCatalog();
 })();
 
 document.querySelector('[data-tab="tab-cuneiforme"]')?.addEventListener('click', () => {
