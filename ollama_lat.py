@@ -23,6 +23,7 @@ OLLAMA_URL = "http://localhost:11434"
 # Modelos recomendados para tradução de latim/grego (do mais leve ao melhor)
 MODELOS_RECOMENDADOS = [
     ("phi3",       "Phi-3 Mini 3.8B  — rápido, leve"),
+    ("llama3.2",   "Llama 3.2 3B     — rápido, leve"),
     ("llama3.1",   "Llama 3.1 8B     — excelente qualidade"),
     ("gemma2",     "Gemma 2 9B       — muito boa qualidade"),
 ]

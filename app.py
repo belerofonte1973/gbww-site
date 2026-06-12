@@ -345,7 +345,7 @@ def api_traduzir():
                 yield sse('erro', {'msg': 'Ollama não disponível'}); return
             fn = _ollama_comentario if motor == 'comentario' else _ollama_stream
             try:
-                for frag in fn(texto, *([modelo] if modelo else [])):
+                for frag in fn(texto, lingua, modelo):
                     yield sse('chunk', {'text': frag})
             except Exception as ex:
                 yield sse('erro', {'msg': str(ex)})
