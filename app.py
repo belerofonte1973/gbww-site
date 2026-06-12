@@ -96,6 +96,12 @@ try:
 except Exception:
     _PHI_OK = False
 
+try:
+    import morph_api as _morph
+    _MORPH_OK = True
+except Exception:
+    _MORPH_OK = False
+
 import csv as _csv
 
 # ── OGL metadata ─────────────────────────────────────────────────────────────
@@ -692,6 +698,34 @@ def api_phi_texto():
         return jsonify({'erro': 'URN inválido'}), 400
     try:
         return jsonify({'texto': _phi.obter_texto(urn)})
+    except Exception as ex:
+        return jsonify({'erro': str(ex)}), 500
+
+
+# ── Análise Morfológica (Alpheios) ────────────────────────────────────────────
+
+@app.route('/api/morph/analise')
+def api_morph_analise():
+    if not _MORPH_OK:
+        return jsonify({'erro': 'morph_api.py não disponível'}), 503
+    word = request.args.get('word', '').strip()
+    lang = request.args.get('lang', 'lat')
+    if not word:
+        return jsonify({'erro': 'Palavra em falta'}), 400
+    if lang not in ('lat', 'grc'):
+        return jsonify({'erro': 'Língua inválida (use lat ou grc)'}), 400
+    try:
+        result = _morph.analisar(word, lang)
+        # enriquecer com Diogenes se disponível
+        if _DIOGENES_OK:
+            diog_lang = 'lat' if lang == 'lat' else 'grk'
+            try:
+                diog = diogenes_parse(word, diog_lang)
+                if diog.get('dictionary'):
+                    result['diogenes'] = diog
+            except Exception:
+                pass
+        return jsonify(result)
     except Exception as ex:
         return jsonify({'erro': str(ex)}), 500
 

@@ -78,6 +78,7 @@
           {% if pron_ok %}
           <button id="btn-perc-pron" disabled onclick="pronunciarPercTexto()">🔊 Pronunciar</button>
           {% endif %}
+          <button id="btn-perc-morph" class="btn-morph-toggle" onclick="toggleMorfPanel()">🔬 Morfologia</button>
           <span id="perc-pass-status" class="perc-status"></span>
         </div>
         {% if pron_ok %}
@@ -98,6 +99,27 @@
         </div>
         {% endif %}
         <div id="perc-trans-output" class="perc-trans-output" style="display:none"></div>
+
+        <!-- ── Painel de Análise Morfológica ─────────────────────────── -->
+        <div id="morph-panel" class="morph-panel" style="display:none">
+          <div class="morph-header">
+            <span class="morph-titulo">🔬 Análise Morfológica — Alpheios / Morpheus</span>
+            <button class="morph-close" onclick="toggleMorfPanel()" title="Fechar">✕</button>
+          </div>
+          <div class="morph-search-row">
+            <input id="morph-palavra" type="text" placeholder="Insira ou seleccione uma palavra…"
+                   onkeydown="if(event.key==='Enter') morfAnalisar()">
+            <select id="morph-lang">
+              <option value="lat">Latim</option>
+              <option value="grc">Grego</option>
+            </select>
+            <button onclick="morfAnalisar()">Analisar</button>
+            <button onclick="morfLimpar()" title="Limpar">✕</button>
+          </div>
+          <div id="morph-resultado" class="morph-resultado">
+            <span class="morph-hint">Clique numa palavra do texto (duplo-clique activa o Alpheios) ou escreva acima.</span>
+          </div>
+        </div>
       </div>
     </div>
 

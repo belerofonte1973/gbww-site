@@ -1038,6 +1038,121 @@ document.getElementById('apibible-key-input')?.addEventListener('keydown', e => 
   if (e.key === 'Escape') closeApibibleKeyDialog();
 });
 
+// ── Análise Morfológica (Alpheios) ────────────────────────────────────────────
+
+const _MORPH_FORM_ORDER = ['pofs','tense','mood','voice','pers','case','num','gend','decl','conj'];
+
+function toggleMorfPanel() {
+  const panel = document.getElementById('morph-panel');
+  if (!panel) return;
+  const visible = panel.style.display !== 'none';
+  panel.style.display = visible ? 'none' : '';
+  document.getElementById('btn-perc-morph').classList.toggle('active', !visible);
+
+  if (!visible) {
+    // pré-preencher com a palavra seleccionada
+    const sel = window.getSelection().toString().trim().split(/\s+/)[0].replace(/[.,;:!?()[\]'"«»]/g, '');
+    if (sel) {
+      document.getElementById('morph-palavra').value = sel;
+      // detectar língua automaticamente
+      const fonte = onlineFonte();
+      const isGrc = (fonte === 'perseus' && document.getElementById('perc-lingua')?.value === 'grc');
+      document.getElementById('morph-lang').value = isGrc ? 'grc' : 'lat';
+      morfAnalisar();
+    } else {
+      document.getElementById('morph-palavra').focus();
+    }
+  }
+}
+
+async function morfAnalisar() {
+  const palavra = document.getElementById('morph-palavra').value.trim();
+  const lang    = document.getElementById('morph-lang').value;
+  if (!palavra) return;
+
+  const resultado = document.getElementById('morph-resultado');
+  resultado.innerHTML = '<span class="morph-loading">⏳ A consultar Alpheios…</span>';
+
+  try {
+    const r = await fetch(`/api/morph/analise?word=${enc(palavra)}&lang=${lang}`);
+    const data = await r.json();
+    _morfRenderResultados(data, resultado);
+  } catch (err) {
+    resultado.innerHTML = `<span class="morph-erro">⚠ ${esc(err.message)}</span>`;
+  }
+}
+
+function morfLimpar() {
+  const r = document.getElementById('morph-resultado');
+  if (r) r.innerHTML = '<span class="morph-hint">Escreva uma palavra acima e clique Analisar.</span>';
+  const inp = document.getElementById('morph-palavra');
+  if (inp) inp.value = '';
+}
+
+function _morfRenderResultados(data, container) {
+  if (data.erro) {
+    container.innerHTML = `<span class="morph-erro">⚠ ${esc(data.erro)}</span>`;
+    return;
+  }
+
+  const results = data.results || [];
+  if (!results.length) {
+    container.innerHTML = '<span class="morph-vazio">Sem análise disponível para esta palavra.</span>';
+    return;
+  }
+
+  let html = `<div class="morph-palavra-titulo">${esc(data.word)}</div>`;
+
+  for (const res of results) {
+    html += '<div class="morph-entrada">';
+    html += '<div class="morph-lemma">';
+    if (res.lemma)   html += `<span class="morph-lemma-form">${esc(res.lemma)}</span>`;
+    if (res.pofs_pt) html += ` <span class="morph-pofs-badge">${esc(res.pofs_pt)}</span>`;
+    html += '</div>';
+
+    if (res.forms && res.forms.length) {
+      html += '<div class="morph-formas">';
+      for (const form of res.forms) {
+        html += '<div class="morph-forma-linha">';
+        if (form.forma) html += `<span class="morph-forma-word">${esc(form.forma)}</span>`;
+        for (const field of _MORPH_FORM_ORDER) {
+          if (form[field]) {
+            html += `<span class="morph-tag morph-tag-${field}" title="${esc(form[field].label)}">`
+                  + esc(form[field].pt) + '</span>';
+          }
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>'; // morph-entrada
+  }
+
+  // entrada de dicionário (Diogenes — disponível localmente)
+  const diog = data.diogenes;
+  if (diog && diog.dictionary && diog.dictionary.length) {
+    for (const d of diog.dictionary) {
+      html += `<div class="morph-dict">
+        <span class="morph-dict-name">${esc(d.dictionary)}:</span>
+        <span class="morph-dict-headword">${esc(d.headword)}</span><br>
+        <span class="morph-dict-entry">${esc(d.entry)}</span>
+      </div>`;
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+// clique simples no texto pré-preenche o painel (sem abri-lo forçosamente)
+document.getElementById('perc-texto')?.addEventListener('click', () => {
+  const sel = window.getSelection().toString().trim().split(/\s+/)[0].replace(/[.,;:!?()[\]'"«»]/g, '');
+  if (!sel) return;
+  const inp = document.getElementById('morph-palavra');
+  if (inp) inp.value = sel;
+  const panel = document.getElementById('morph-panel');
+  if (panel && panel.style.display !== 'none') morfAnalisar();
+});
+
 // ── PHI Latin ─────────────────────────────────────────────────────────────────
 
 function phiLoadCatalog(forcar = false) {
