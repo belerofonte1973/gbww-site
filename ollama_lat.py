@@ -19,6 +19,12 @@ from typing import Iterator
 
 OLLAMA_URL = "http://localhost:11434"
 
+# Limitar uso de CPU para não travar o sistema durante a geração
+OLLAMA_OPTIONS = {
+    "num_thread": 4,   # cores usados (evita saturar todos os CPUs)
+    "num_ctx":    2048, # contexto reduzido → tokens mais rápidos
+}
+
 
 # Modelos recomendados para tradução de latim/grego (do mais leve ao melhor)
 MODELOS_RECOMENDADOS = [
@@ -116,7 +122,7 @@ def precarregar_modelo(modelo: str | None = None) -> tuple[bool, str]:
     try:
         r = requests.post(
             f"{OLLAMA_URL}/api/generate",
-            json={"model": modelo, "keep_alive": -1},
+            json={"model": modelo, "keep_alive": -1, "options": OLLAMA_OPTIONS},
             timeout=(15, 300),   # até 5 min para carregar o modelo
         )
         return r.status_code == 200, modelo
@@ -144,7 +150,7 @@ def traduzir_stream(texto: str,
     try:
         resp = requests.post(
             f"{OLLAMA_URL}/api/generate",
-            json={"model": modelo, "prompt": prompt, "stream": True},
+            json={"model": modelo, "prompt": prompt, "stream": True, "options": OLLAMA_OPTIONS},
             stream=True,
             timeout=(15, None),  # 15 s para conectar; sem limite de leitura (streaming)
         )
