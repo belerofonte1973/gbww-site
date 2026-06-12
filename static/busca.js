@@ -441,6 +441,63 @@ document.getElementById('gemini-key-input')?.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeGeminiKeyDialog();
 });
 
+// ── Claude key dialog ─────────────────────────────────────────────────────────
+
+function showClaudeKeyDialog() {
+  document.getElementById('claude-key-input').value = '';
+  document.getElementById('claude-dialog').style.display = 'flex';
+  document.getElementById('claude-key-input').focus();
+}
+function closeClaudeKeyDialog() {
+  document.getElementById('claude-dialog').style.display = 'none';
+}
+async function saveClaudeKey() {
+  const chave = document.getElementById('claude-key-input').value.trim();
+  if (!chave) return;
+  const resp = await fetch('/api/claude_chave', {
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify({chave}),
+  });
+  const d = await resp.json();
+  setStatus(d.ok ? '✓ Chave Claude guardada.' : `⚠ ${d.msg}`);
+  closeClaudeKeyDialog();
+}
+document.getElementById('claude-key-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveClaudeKey();
+  if (e.key === 'Escape') closeClaudeKeyDialog();
+});
+
+// ── Translation motor selector ────────────────────────────────────────────────
+
+function onPercMotorChange() {
+  const motor   = document.getElementById('perc-motor')?.value || '';
+  const modelSel = document.getElementById('perc-modelo');
+  const keyBtn   = document.getElementById('btn-trans-key');
+
+  // mostra selector de modelo para Gemini / Claude / Ollama
+  const hasModelos = motor === 'gemini' || motor === 'claude' || motor === 'ollama';
+  if (modelSel) {
+    modelSel.style.display = hasModelos ? '' : 'none';
+    // filtra opções pelo motor
+    Array.from(modelSel.options).forEach(opt => {
+      opt.style.display = (opt.dataset.motor === motor) ? '' : 'none';
+    });
+    // selecciona primeiro modelo visível
+    const first = Array.from(modelSel.options).find(o => o.dataset.motor === motor);
+    if (first) modelSel.value = first.value;
+  }
+
+  // botão de chave: só para Gemini e Claude
+  if (keyBtn) keyBtn.style.display = (motor === 'gemini' || motor === 'claude') ? '' : 'none';
+}
+
+function showTransKeyDialog() {
+  const motor = document.getElementById('perc-motor')?.value || '';
+  if (motor === 'gemini') showGeminiKeyDialog();
+  else if (motor === 'claude') showClaudeKeyDialog();
+}
+
 // ── Perseus / Textos Online ───────────────────────────────────────────────────
 
 function percLoadCatalog(forcar = false) {
@@ -575,12 +632,37 @@ async function percTraduzir() {
   if (!texto) return;
 
   const fonte  = onlineFonte();
-  const lingua = fonte !== 'perseus' ? 'hbo' :
-                 (document.getElementById('perc-lingua').value === 'grc' ? 'grc' : 'la');
-  const modelo = document.getElementById('sel-gemini-modelo')?.value || '';
-  const outEl  = document.getElementById('perc-trans-output');
+  const lingua = (fonte === 'sefaria' || fonte === 'apibible') ? 'hbo' :
+                 (fonte === 'perseus' && document.getElementById('perc-lingua')?.value === 'grc') ? 'grc' : 'la';
+
+  const motor  = document.getElementById('perc-motor')?.value || 'gemini';
+  const modelo = document.getElementById('perc-modelo')?.value || '';
+
+  // ── interlinear offline ───────────────────────────────────────────────────
+  if (motor === 'interlinear') {
+    const outEl = _getOrCreateTransOutput();
+    outEl.innerHTML = '⏳ A processar…';
+    try {
+      const resp = await fetch('/api/traduzir/interlinear', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({texto, lingua}),
+      });
+      const d = await resp.json();
+      if (d.erro) { outEl.textContent = `⚠ ${d.erro}`; return; }
+      renderInterlinear(d, outEl);
+    } catch (err) {
+      outEl.textContent = `⚠ ${err.message}`;
+    }
+    return;
+  }
+
+  // ── motores SSE (gemini / claude / ollama) ────────────────────────────────
+  const labels = { gemini: '✨ Gemini', claude: '🔷 Claude', ollama: '🤖 Ollama' };
+  const outEl  = _getOrCreateTransOutput();
+  outEl.className   = 'perc-trans-output';
   outEl.style.display = 'block';
-  outEl.textContent   = '🌟 Gemini…\n\n';
+  outEl.textContent = `${labels[motor] || motor}…\n\n`;
 
   if (S.transCtrl) S.transCtrl.abort();
   S.transCtrl = new AbortController();
@@ -589,7 +671,7 @@ async function percTraduzir() {
     const resp = await fetch('/api/traduzir', {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({texto, lingua, motor: 'gemini', modelo}),
+      body:    JSON.stringify({texto, lingua, motor, modelo}),
       signal:  S.transCtrl.signal,
     });
     await readSSEStream(resp.body, {
@@ -599,6 +681,36 @@ async function percTraduzir() {
   } catch (err) {
     if (err.name !== 'AbortError') outEl.textContent = `⚠ ${err.message}`;
   }
+}
+
+function _getOrCreateTransOutput() {
+  let el = document.getElementById('perc-trans-output');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'perc-trans-output';
+    el.className = 'perc-trans-output';
+    const ctrlRow = document.getElementById('trans-ctrl-row');
+    ctrlRow?.parentNode?.insertBefore(el, ctrlRow.nextSibling);
+  }
+  el.style.display = 'block';
+  return el;
+}
+
+function renderInterlinear(data, outEl) {
+  outEl.className = 'interlinear-out';
+  if (!data.linhas || !data.linhas.length) {
+    outEl.textContent = '(sem resultados)';
+    return;
+  }
+  const tbl = document.createElement('table');
+  tbl.className = 'interlinear-table';
+  data.linhas.forEach(({palavra, glosa}) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${esc(palavra)}</td><td>${esc(glosa || '—')}</td>`;
+    tbl.appendChild(tr);
+  });
+  outEl.innerHTML = '';
+  outEl.appendChild(tbl);
 }
 
 function percCopiar() {
@@ -1435,6 +1547,7 @@ async function readSSEStream(body, handlers) {
 // Auto-initialize on page load since Textos Online is the default tab
 (function initOnlineTab() {
   loadPercVozes();
+  onPercMotorChange();  // set initial motor UI state
   const fonte = onlineFonte();
   if (fonte === 'perseus') percLoadCatalog();
   else if (fonte === 'll') llLoadCatalog();

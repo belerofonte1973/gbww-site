@@ -72,14 +72,37 @@
         <div id="perc-texto" class="perc-texto alpheios-enabled" lang="lat"
              data-placeholder="Selecione uma obra à esquerda."></div>
         <div class="perc-btn-row">
-          <button id="btn-perc-obra"     disabled onclick="onlineObraCompleta()">📥 Obra completa</button>
-          <button id="btn-perc-traduzir" disabled onclick="percTraduzir()">🌟 Traduzir →PT</button>
-          <button id="btn-perc-copiar"   disabled onclick="percCopiar()">Copiar</button>
+          <button id="btn-perc-obra" disabled onclick="onlineObraCompleta()">📥 Obra completa</button>
+          <button id="btn-perc-copiar" disabled onclick="percCopiar()">Copiar</button>
           {% if pron_ok %}
           <button id="btn-perc-pron" disabled onclick="pronunciarPercTexto()">🔊 Pronunciar</button>
           {% endif %}
           <button id="btn-perc-morph" class="btn-morph-toggle" onclick="toggleMorfPanel()">🔬 Morfologia</button>
           <span id="perc-pass-status" class="perc-status"></span>
+        </div>
+
+        <!-- ── Linha de Tradução ────────────────────────────────────── -->
+        <div class="trans-ctrl-row" id="trans-ctrl-row">
+          <select id="perc-motor" onchange="onPercMotorChange()">
+            {% if gemini_ok %}<option value="gemini">✨ Gemini</option>{% endif %}
+            {% if claude_ok %}<option value="claude">🔷 Claude</option>{% endif %}
+            {% if ollama_ok %}<option value="ollama">🤖 Ollama (local)</option>{% endif %}
+            <option value="interlinear">📖 Interlinear (offline)</option>
+          </select>
+          <!-- selector de modelo (Gemini / Claude) -->
+          <select id="perc-modelo" style="display:none">
+            {% for mid, mlabel in gemini_models %}
+            <option value="{{ mid }}" data-motor="gemini">{{ mlabel }}</option>
+            {% endfor %}
+            {% for mid, mlabel in claude_models %}
+            <option value="{{ mid }}" data-motor="claude">{{ mlabel }}</option>
+            {% endfor %}
+            {% for m in ollama_models %}
+            <option value="{{ m }}" data-motor="ollama">{{ m }}</option>
+            {% endfor %}
+          </select>
+          <button id="btn-trans-key" onclick="showTransKeyDialog()" title="Configurar chave API" style="display:none">🔑</button>
+          <button id="btn-perc-traduzir" disabled onclick="percTraduzir()">🌟 Traduzir →PT</button>
         </div>
         {% if pron_ok %}
         <div id="perc-pron-row" class="perc-pron-row" style="display:none">
@@ -307,12 +330,27 @@
 <!-- ── diálogo chave Gemini ───────────────────────────────────────────────── -->
 <div id="gemini-dialog" class="dialog-overlay" style="display:none">
   <div class="dialog-box">
-    <h3>Chave API Gemini</h3>
-    <p>Obtenha em <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></p>
-    <input id="gemini-key-input" type="password" placeholder="Insira a chave…" style="width:100%">
+    <h3>✨ Chave API Gemini</h3>
+    <p>Obtenha gratuitamente em <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></p>
+    <input id="gemini-key-input" type="password" placeholder="AIza…" style="width:100%">
+    <p class="dialog-note">A chave é guardada localmente no servidor.</p>
     <div class="dialog-btns">
       <button onclick="saveGeminiKey()">Guardar</button>
       <button onclick="closeGeminiKeyDialog()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── diálogo chave Claude ───────────────────────────────────────────────── -->
+<div id="claude-dialog" class="dialog-overlay" style="display:none">
+  <div class="dialog-box">
+    <h3>🔷 Chave API Claude (Anthropic)</h3>
+    <p>Obtenha em <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></p>
+    <input id="claude-key-input" type="password" placeholder="sk-ant-…" style="width:100%">
+    <p class="dialog-note">A chave é guardada localmente no servidor.</p>
+    <div class="dialog-btns">
+      <button onclick="saveClaudeKey()">Guardar</button>
+      <button onclick="closeClaudeKeyDialog()">Cancelar</button>
     </div>
   </div>
 </div>

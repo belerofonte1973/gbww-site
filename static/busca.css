@@ -382,6 +382,65 @@
 }
 .perc-pron-row label { display: flex; align-items: center; gap: 4px; }
 
+/* ── Linha de controlo de tradução ──────────────────────────────────────────── */
+.trans-ctrl-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 8px;
+  background: #f0ece5;
+  border-top: 1px solid var(--busca-border);
+  flex-shrink: 0;
+}
+.trans-ctrl-row select {
+  height: 28px;
+  font-size: 0.82rem;
+  border: 1px solid #c4b9aa;
+  border-radius: 4px;
+  padding: 0 6px;
+  background: #fff;
+  max-width: 220px;
+}
+.trans-ctrl-row button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #c4b9aa;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  background: #e8e2d8;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.trans-ctrl-row button:hover    { background: #ddd7cc; }
+.trans-ctrl-row button:disabled { opacity: 0.45; cursor: default; }
+#btn-perc-traduzir { font-weight: 600; background: #d8e8d4; border-color: #aac4a5; }
+#btn-perc-traduzir:hover    { background: #c8dcc4; }
+#btn-perc-traduzir:disabled { background: #e8e2d8; border-color: #c4b9aa; }
+#btn-trans-key { padding: 0 8px; font-size: 1rem; }
+
+/* ── interlinear output ─────────────────────────────────────────────────────── */
+.interlinear-out {
+  padding: 8px 10px;
+  font-size: 0.83rem;
+  border-top: 1px solid var(--busca-border);
+  background: #fffdf8;
+  flex-shrink: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.interlinear-table { border-collapse: collapse; width: 100%; }
+.interlinear-table td {
+  padding: 3px 8px 3px 0;
+  vertical-align: top;
+  border-bottom: 1px dotted #e0d8cc;
+}
+.interlinear-table td:first-child { font-weight: 600; color: #4a3000; min-width: 120px; }
+.interlinear-table td:last-child  { color: #3a3030; }
+
+/* ── dialog-note ─────────────────────────────────────────────────────────────── */
+.dialog-note { font-size: 0.78rem !important; color: #888 !important; margin-top: -4px !important; }
+
 .perc-trans-output {
   max-height: 160px;
   overflow-y: auto;

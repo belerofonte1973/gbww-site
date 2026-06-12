@@ -28,10 +28,24 @@ try:
 except Exception:
     _GEMINI_OK = False
     MODELOS_GEMINI = []
-    GEMINI_DEFAULT = 'gemini-2.0-flash'
+    GEMINI_DEFAULT = 'gemini-2.5-flash'
     def _gemini_stream(t, l, m, k): return iter([])
     def gemini_obter_chave(): return ''
     def gemini_guardar_chave(_): pass
+
+try:
+    from claude_lat import (traduzir_stream as _claude_stream,
+                             obter_chave as claude_obter_chave,
+                             guardar_chave as claude_guardar_chave,
+                             MODELOS_CLAUDE, MODELO_DEFAULT as CLAUDE_DEFAULT)
+    _CLAUDE_OK = True
+except Exception:
+    _CLAUDE_OK = False
+    MODELOS_CLAUDE = []
+    CLAUDE_DEFAULT = 'claude-haiku-4-5-20251001'
+    def _claude_stream(t, l, m, k): return iter([])
+    def claude_obter_chave(): return ''
+    def claude_guardar_chave(_): pass
 
 try:
     from ollama_lat import traduzir_stream as _ollama_stream, comentario as _ollama_comentario, listar_modelos as _ollama_modelos
@@ -171,21 +185,21 @@ def all_lit_texts():
 def busca():
     return render_template(
         'busca.html',
-        busca_ok=_BUSCA_OK,
-        ollama_models=_ollama_modelos() if _OLLAMA_OK else [],
-        gemini_models=MODELOS_GEMINI,
-        gemini_key_set=bool(gemini_obter_chave()) if _GEMINI_OK else False,
-        perseus_ok=_PERSEUS_OK,
-        sefaria_ok=_SEFARIA_OK,
-        apibible_ok=_APIBIBLE_OK,
-        apibible_key_set=bool(_abapi.obter_chave()) if _APIBIBLE_OK else False,
         pron_ok=_PRON_OK,
         vozes=_pron.VOZES if _PRON_OK else [],
-        trad_ok=_TRAD_OK,
         cdli_ok=_CDLI_OK,
         cdli_langs=_cdli.LANG_LABELS if _CDLI_OK else {},
-        llonline_ok=_LLONLINE_OK,
-        phi_ok=_PHI_OK,
+        apibible_ok=_APIBIBLE_OK,
+        apibible_key_set=bool(_abapi.obter_chave()) if _APIBIBLE_OK else False,
+        gemini_ok=_GEMINI_OK,
+        gemini_key_set=bool(gemini_obter_chave()) if _GEMINI_OK else False,
+        gemini_models=MODELOS_GEMINI,
+        claude_ok=_CLAUDE_OK,
+        claude_key_set=bool(claude_obter_chave()) if _CLAUDE_OK else False,
+        claude_models=MODELOS_CLAUDE,
+        ollama_ok=_OLLAMA_OK,
+        ollama_models=_ollama_modelos() if _OLLAMA_OK else [],
+        trad_ok=_TRAD_OK,
     )
 
 
@@ -290,6 +304,7 @@ def api_traduzir():
     def generate():
         if not texto:
             yield sse('erro', {'msg': 'Texto vazio'}); return
+
         if motor in ('ollama', 'comentario'):
             if not _OLLAMA_OK:
                 yield sse('erro', {'msg': 'Ollama não disponível'}); return
@@ -299,12 +314,25 @@ def api_traduzir():
                     yield sse('chunk', {'text': frag})
             except Exception as ex:
                 yield sse('erro', {'msg': str(ex)})
-        else:
+
+        elif motor == 'claude':
+            if not _CLAUDE_OK:
+                yield sse('erro', {'msg': 'claude_lat.py não disponível'}); return
+            chave = claude_obter_chave()
+            if not chave:
+                yield sse('erro', {'msg': 'Chave Claude não configurada — clique em 🔑'}); return
+            try:
+                for frag in _claude_stream(texto, lingua, modelo or CLAUDE_DEFAULT, chave):
+                    yield sse('chunk', {'text': frag})
+            except Exception as ex:
+                yield sse('erro', {'msg': str(ex)})
+
+        else:  # gemini (default)
             if not _GEMINI_OK:
                 yield sse('erro', {'msg': 'Gemini não disponível'}); return
             chave = gemini_obter_chave()
             if not chave:
-                yield sse('erro', {'msg': 'Chave Gemini não configurada'}); return
+                yield sse('erro', {'msg': 'Chave Gemini não configurada — clique em 🔑'}); return
             try:
                 for frag in _gemini_stream(texto, lingua, modelo or GEMINI_DEFAULT, chave):
                     if frag.startswith('\x01retry:'):
@@ -313,11 +341,65 @@ def api_traduzir():
                         yield sse('chunk', {'text': frag})
             except Exception as ex:
                 yield sse('erro', {'msg': str(ex)})
+
         yield sse('done', {})
 
     return Response(stream_with_context(generate()),
                     content_type='text/event-stream',
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+# ── Claude chave ──────────────────────────────────────────────────────────────
+
+@app.route('/api/claude_chave', methods=['POST'])
+def api_claude_chave():
+    if not _CLAUDE_OK:
+        return jsonify({'ok': False, 'msg': 'claude_lat.py não disponível'})
+    chave = ((request.get_json(force=True, silent=True) or {}).get('chave') or '').strip()
+    if not chave:
+        return jsonify({'ok': False, 'msg': 'Chave vazia'})
+    claude_guardar_chave(chave)
+    return jsonify({'ok': True})
+
+
+# ── Tradução Interlinear (offline — dicionários locais) ───────────────────────
+
+@app.route('/api/traduzir/interlinear', methods=['POST'])
+def api_traduzir_interlinear():
+    data   = request.get_json(force=True, silent=True) or {}
+    texto  = (data.get('texto') or '').strip()
+    lingua = data.get('lingua', 'la')
+
+    if not texto:
+        return jsonify({'erro': 'Texto vazio'}), 400
+    if not _TRAD_OK:
+        return jsonify({'erro': 'traduzir_lat_grc.py não disponível'}), 503
+
+    import re as _re
+    tokens = _re.findall(r"[\wͰ-Ͽἀ-῿א-ת]+|[^\w\s]", texto)
+    linhas = []
+
+    for tok in tokens:
+        if not tok.isalpha():
+            linhas.append({'palavra': tok, 'glosa': ''})
+            continue
+        glosa = ''
+        try:
+            if lingua == 'la':
+                glosa = _trad.lookup_collatinus_pt(tok)
+                if not glosa or glosa.startswith('(não encontrado)'):
+                    glosa = _trad.lookup_ls(tok, traduzir_pt=False) or ''
+                    if glosa:
+                        glosa = glosa[:120]
+            elif lingua == 'grc':
+                glosa = _trad.lookup_lsj(tok, traduzir_pt=False) or ''
+                if glosa:
+                    glosa = glosa[:120]
+        except Exception:
+            pass
+        linhas.append({'palavra': tok, 'glosa': glosa.strip()})
+
+    return jsonify({'linhas': linhas, 'lingua': lingua})
 
 
 # ── traduzir_pt (compatibilidade com literary.html) ───────────────────────────
