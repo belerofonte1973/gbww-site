@@ -78,6 +78,7 @@
           <button id="btn-perc-pron" disabled onclick="pronunciarPercTexto()">🔊 Pronunciar</button>
           {% endif %}
           <button id="btn-perc-morph" class="btn-morph-toggle" onclick="toggleMorfPanel()">🔬 Morfologia</button>
+          <button id="btn-perc-hist" class="btn-morph-toggle" onclick="toggleHistPanel()">📚 Histórico</button>
           <span id="perc-pass-status" class="perc-status"></span>
         </div>
 
@@ -103,6 +104,7 @@
           </select>
           <button id="btn-trans-key" onclick="showTransKeyDialog()" title="Configurar chave API" style="display:none">🔑</button>
           <button id="btn-perc-traduzir" disabled onclick="percTraduzir()">🌟 Traduzir →PT</button>
+          <button id="btn-guardar-trad" disabled onclick="guardarTraducao()" title="Guardar tradução">💾 Guardar</button>
         </div>
         {% if pron_ok %}
         <div id="perc-pron-row" class="perc-pron-row" style="display:none">
@@ -122,6 +124,26 @@
         </div>
         {% endif %}
         <div id="perc-trans-output" class="perc-trans-output" style="display:none"></div>
+
+        <!-- ── Painel de Histórico de Traduções ─────────────────────── -->
+        <div id="hist-panel" class="hist-panel" style="display:none">
+          <div class="hist-header">
+            <span class="hist-titulo">📚 Traduções Guardadas</span>
+            <div class="hist-header-btns">
+              <a href="/api/traducoes/export?fmt=txt" download class="hist-export-btn" title="Exportar TXT">⬇ TXT</a>
+              <a href="/api/traducoes/export?fmt=json" download class="hist-export-btn" title="Exportar JSON">⬇ JSON</a>
+              <button class="hist-close" onclick="toggleHistPanel()" title="Fechar">✕</button>
+            </div>
+          </div>
+          <div id="hist-lista" class="hist-lista">
+            <p class="hist-vazio">Nenhuma tradução guardada.</p>
+          </div>
+          <div id="hist-paginacao" class="hist-paginacao" style="display:none">
+            <button id="hist-prev" onclick="histPagina(-1)" disabled>◀</button>
+            <span id="hist-pag-info"></span>
+            <button id="hist-next" onclick="histPagina(+1)">▶</button>
+          </div>
+        </div>
 
         <!-- ── Painel de Análise Morfológica ─────────────────────────── -->
         <div id="morph-panel" class="morph-panel" style="display:none">

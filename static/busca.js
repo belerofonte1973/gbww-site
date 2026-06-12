@@ -638,6 +638,9 @@ async function percTraduzir() {
   const motor  = document.getElementById('perc-motor')?.value || 'gemini';
   const modelo = document.getElementById('perc-modelo')?.value || '';
 
+  const guardarBtn = document.getElementById('btn-guardar-trad');
+  if (guardarBtn) guardarBtn.disabled = true;
+
   // ── interlinear offline ───────────────────────────────────────────────────
   if (motor === 'interlinear') {
     const outEl = _getOrCreateTransOutput();
@@ -651,6 +654,7 @@ async function percTraduzir() {
       const d = await resp.json();
       if (d.erro) { outEl.textContent = `⚠ ${d.erro}`; return; }
       renderInterlinear(d, outEl);
+      if (guardarBtn) guardarBtn.disabled = false;
     } catch (err) {
       outEl.textContent = `⚠ ${err.message}`;
     }
@@ -678,6 +682,8 @@ async function percTraduzir() {
       chunk: d => { outEl.textContent += d.text; outEl.scrollTop = outEl.scrollHeight; },
       erro:  d => { outEl.textContent = `⚠ ${d.msg}`; },
     });
+    if (guardarBtn && !outEl.textContent.startsWith('⚠'))
+      guardarBtn.disabled = false;
   } catch (err) {
     if (err.name !== 'AbortError') outEl.textContent = `⚠ ${err.message}`;
   }
@@ -1151,6 +1157,130 @@ document.getElementById('apibible-key-input')?.addEventListener('keydown', e => 
 });
 
 // ── Análise Morfológica (Alpheios) ────────────────────────────────────────────
+
+// ── Histórico de Traduções ────────────────────────────────────────────────────
+
+let _histPagina = 1;
+
+function toggleHistPanel() {
+  const panel = document.getElementById('hist-panel');
+  if (!panel) return;
+  const visible = panel.style.display !== 'none';
+  panel.style.display = visible ? 'none' : '';
+  document.getElementById('btn-perc-hist').classList.toggle('active', !visible);
+  if (!visible) histCarregar(1);
+}
+
+async function histCarregar(pagina) {
+  _histPagina = pagina || 1;
+  const lista = document.getElementById('hist-lista');
+  lista.innerHTML = '<p class="hist-vazio">A carregar…</p>';
+  try {
+    const r = await fetch(`/api/traducoes?pagina=${_histPagina}`);
+    const d = await r.json();
+    histRender(d);
+  } catch (err) {
+    lista.innerHTML = `<p class="hist-vazio">⚠ ${err.message}</p>`;
+  }
+}
+
+function histPagina(delta) {
+  histCarregar(_histPagina + delta);
+}
+
+function histRender(d) {
+  const lista   = document.getElementById('hist-lista');
+  const pagDiv  = document.getElementById('hist-paginacao');
+  const pagInfo = document.getElementById('hist-pag-info');
+  const prevBtn = document.getElementById('hist-prev');
+  const nextBtn = document.getElementById('hist-next');
+  const POR_PAG = 30;
+
+  lista.innerHTML = '';
+  if (!d.items || !d.items.length) {
+    lista.innerHTML = '<p class="hist-vazio">Nenhuma tradução guardada.</p>';
+    pagDiv.style.display = 'none';
+    return;
+  }
+
+  const totalPags = Math.ceil(d.total / POR_PAG);
+  pagDiv.style.display = totalPags > 1 ? '' : 'none';
+  pagInfo.textContent  = `${_histPagina} / ${totalPags}  (${d.total} total)`;
+  prevBtn.disabled = _histPagina <= 1;
+  nextBtn.disabled = _histPagina >= totalPags;
+
+  d.items.forEach(it => {
+    const div  = document.createElement('div');
+    div.className = 'hist-entrada';
+    div.dataset.id = it.id;
+
+    const dataFmt = it.data ? it.data.replace('T',' ').replace('Z','') : '';
+    const motor   = it.motor || '';
+    const obra    = it.obra  || it.fonte || '(sem título)';
+
+    div.innerHTML = `
+      <div class="hist-entrada-topo" onclick="this.closest('.hist-entrada').classList.toggle('aberto')">
+        <span class="hist-meta">${esc(dataFmt)}</span>
+        <span class="hist-obra">${esc(obra)}</span>
+        <span class="hist-motor-badge">${esc(motor)}</span>
+        <button class="hist-apagar" title="Apagar" onclick="event.stopPropagation();histApagar(${it.id})">🗑</button>
+      </div>
+      <div class="hist-entrada-corpo">
+        <div class="hist-original">${esc(it.original)}</div>
+        <div class="hist-traducao">${esc(it.traducao)}</div>
+      </div>`;
+    lista.appendChild(div);
+  });
+}
+
+async function histApagar(id) {
+  if (!confirm('Apagar esta tradução?')) return;
+  await fetch(`/api/traducoes/${id}`, {method: 'DELETE'});
+  histCarregar(_histPagina);
+}
+
+// ── Guardar tradução actual ───────────────────────────────────────────────────
+
+async function guardarTraducao() {
+  const outEl    = document.getElementById('perc-trans-output');
+  const traducao = outEl?.textContent?.trim();
+  if (!traducao) { setStatus('⚠ Nenhuma tradução para guardar.'); return; }
+
+  const original = (window.getSelection().toString().trim()
+                   || document.getElementById('perc-texto')?.textContent?.trim()
+                   || '');
+  const motor    = document.getElementById('perc-motor')?.value || '';
+  const modelo   = document.getElementById('perc-modelo')?.value || '';
+  const fonte    = onlineFonte();
+  const obraEl   = document.getElementById('perc-obra-sel');
+  const obra     = obraEl?.querySelector('b')?.textContent?.trim() || '';
+  const lingua   = (fonte === 'sefaria' || fonte === 'apibible') ? 'hbo' :
+                   (fonte === 'perseus' && document.getElementById('perc-lingua')?.value === 'grc') ? 'grc' : 'la';
+
+  const btn = document.getElementById('btn-guardar-trad');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch('/api/traducoes', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({original, traducao, fonte, obra, lingua, motor, modelo}),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      setStatus('✓ Tradução guardada.');
+      // actualiza o painel se estiver aberto
+      if (document.getElementById('hist-panel')?.style.display !== 'none') {
+        histCarregar(1);
+      }
+    } else {
+      setStatus(`⚠ ${d.msg}`);
+    }
+  } catch (err) {
+    setStatus(`⚠ ${err.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 
 const _MORPH_FORM_ORDER = ['pofs','tense','mood','voice','pers','case','num','gend','decl','conj'];
 

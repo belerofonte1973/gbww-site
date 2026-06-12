@@ -166,7 +166,27 @@ def label_ogl(path: Path) -> tuple:
 # ── app ───────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
-DB  = Path(__file__).parent / 'classics.db'
+DB      = Path(__file__).parent / 'classics.db'
+DB_TRAD = Path(__file__).parent / 'traducoes.db'
+
+def _init_trad_db():
+    con = sqlite3.connect(DB_TRAD)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS traducoes (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            data     TEXT    NOT NULL,
+            fonte    TEXT,
+            obra     TEXT,
+            lingua   TEXT,
+            motor    TEXT,
+            modelo   TEXT,
+            original TEXT    NOT NULL,
+            traducao TEXT    NOT NULL
+        )
+    """)
+    con.commit(); con.close()
+
+_init_trad_db()
 LIT_PER_PAGE = 20
 
 def sse(event, data):
@@ -528,6 +548,77 @@ def api_gemini_chave():
 @app.route('/api/modelos_ollama')
 def api_modelos_ollama():
     return jsonify(_ollama_modelos() if _OLLAMA_OK else [])
+
+
+# ── Traduções guardadas ───────────────────────────────────────────────────────
+
+@app.route('/api/traducoes', methods=['POST'])
+def api_traducoes_guardar():
+    d = request.get_json(force=True, silent=True) or {}
+    original = (d.get('original') or '').strip()
+    traducao = (d.get('traducao') or '').strip()
+    if not original or not traducao:
+        return jsonify({'ok': False, 'msg': 'original e traducao são obrigatórios'}), 400
+    from datetime import datetime, timezone
+    data = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    con = sqlite3.connect(DB_TRAD)
+    cur = con.execute(
+        "INSERT INTO traducoes (data,fonte,obra,lingua,motor,modelo,original,traducao) VALUES (?,?,?,?,?,?,?,?)",
+        (data, d.get('fonte',''), d.get('obra',''), d.get('lingua',''),
+         d.get('motor',''), d.get('modelo',''), original, traducao)
+    )
+    row_id = cur.lastrowid
+    con.commit(); con.close()
+    return jsonify({'ok': True, 'id': row_id})
+
+@app.route('/api/traducoes', methods=['GET'])
+def api_traducoes_listar():
+    pagina = max(1, int(request.args.get('pagina', 1)))
+    por_pag = 30
+    offset  = (pagina - 1) * por_pag
+    con = sqlite3.connect(DB_TRAD)
+    con.row_factory = sqlite3.Row
+    total = con.execute("SELECT COUNT(*) FROM traducoes").fetchone()[0]
+    rows  = con.execute(
+        "SELECT * FROM traducoes ORDER BY id DESC LIMIT ? OFFSET ?",
+        (por_pag, offset)
+    ).fetchall()
+    con.close()
+    return jsonify({
+        'total': total,
+        'pagina': pagina,
+        'items': [dict(r) for r in rows],
+    })
+
+@app.route('/api/traducoes/<int:tid>', methods=['DELETE'])
+def api_traducoes_apagar(tid):
+    con = sqlite3.connect(DB_TRAD)
+    con.execute("DELETE FROM traducoes WHERE id=?", (tid,))
+    con.commit(); con.close()
+    return jsonify({'ok': True})
+
+@app.route('/api/traducoes/export')
+def api_traducoes_export():
+    fmt = request.args.get('fmt', 'json')
+    con = sqlite3.connect(DB_TRAD)
+    con.row_factory = sqlite3.Row
+    rows = con.execute("SELECT * FROM traducoes ORDER BY id").fetchall()
+    con.close()
+    items = [dict(r) for r in rows]
+    if fmt == 'txt':
+        linhas = []
+        for it in items:
+            linhas.append(f"=== [{it['data']}] {it['obra'] or ''} ({it['motor'] or ''}) ===")
+            linhas.append(it['original'])
+            linhas.append('--- Tradução ---')
+            linhas.append(it['traducao'])
+            linhas.append('')
+        txt = '\n'.join(linhas)
+        return Response(txt, mimetype='text/plain',
+                        headers={'Content-Disposition': 'attachment; filename="traducoes.txt"'})
+    data = json.dumps(items, ensure_ascii=False, indent=2)
+    return Response(data, mimetype='application/json',
+                    headers={'Content-Disposition': 'attachment; filename="traducoes.json"'})
 
 
 # ── Perseus API ───────────────────────────────────────────────────────────────
