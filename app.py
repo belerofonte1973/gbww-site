@@ -10,6 +10,21 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from flask import Flask, render_template, request, g, abort, jsonify, send_file, Response, stream_with_context
 
+_SETTINGS_FILE = Path.home() / ".config" / "busca_latina" / "settings.json"
+
+def _ler_settings() -> dict:
+    try:
+        return json.loads(_SETTINGS_FILE.read_text("utf-8"))
+    except Exception:
+        return {}
+
+def _salvar_setting(chave: str, valor: str) -> None:
+    """Grava uma chave no settings.json; cria o directório se necessário."""
+    _SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    s = _ler_settings()
+    s[chave] = valor.strip()
+    _SETTINGS_FILE.write_text(json.dumps(s, ensure_ascii=False, indent=2), "utf-8")
+
 # ── optional imports ──────────────────────────────────────────────────────────
 
 try:
@@ -353,13 +368,14 @@ def api_traduzir():
 
 @app.route('/api/claude_chave', methods=['POST'])
 def api_claude_chave():
-    if not _CLAUDE_OK:
-        return jsonify({'ok': False, 'msg': 'claude_lat.py não disponível'})
     chave = ((request.get_json(force=True, silent=True) or {}).get('chave') or '').strip()
     if not chave:
         return jsonify({'ok': False, 'msg': 'Chave vazia'})
-    claude_guardar_chave(chave)
-    return jsonify({'ok': True})
+    try:
+        _salvar_setting('claude_api_key', chave)
+        return jsonify({'ok': True})
+    except Exception as exc:
+        return jsonify({'ok': False, 'msg': str(exc)})
 
 
 # ── Tradução Interlinear (offline — dicionários locais) ───────────────────────
@@ -497,13 +513,14 @@ def api_vozes():
 
 @app.route('/api/gemini_chave', methods=['POST'])
 def api_gemini_chave():
-    if not _GEMINI_OK:
-        return jsonify({'ok': False, 'msg': 'Gemini não disponível'})
     chave = ((request.get_json(force=True, silent=True) or {}).get('chave') or '').strip()
     if not chave:
         return jsonify({'ok': False, 'msg': 'Chave vazia'})
-    gemini_guardar_chave(chave)
-    return jsonify({'ok': True})
+    try:
+        _salvar_setting('gemini_api_key', chave)
+        return jsonify({'ok': True})
+    except Exception as exc:
+        return jsonify({'ok': False, 'msg': str(exc)})
 
 
 # ── Ollama modelos ────────────────────────────────────────────────────────────
