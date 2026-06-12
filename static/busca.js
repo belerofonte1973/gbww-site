@@ -345,16 +345,48 @@ function filterPercVozes(lang) {
   if (vRow) vRow.style.display = lang === 'la' ? '' : 'none';
 }
 
+function _textoRestante(txt, audio) {
+  // Devolve a parte do texto ainda não lida, estimada pela posição do áudio.
+  // Devolve null se o áudio já terminou (não reiniciar).
+  if (!audio || !audio.duration || isNaN(audio.duration)) return txt;
+  if (audio.ended || audio.currentTime / audio.duration >= 0.97) return null;
+  if (audio.currentTime < 2) return txt;  // menos de 2 s — recomeça do início
+
+  const frac    = audio.currentTime / audio.duration;
+  const charPos = Math.round(frac * txt.length);
+
+  // Procura o último fim de frase (. ! ? ;) nos 300 caracteres antes de charPos
+  const lookFrom = Math.max(0, charPos - 300);
+  const seg      = txt.slice(lookFrom, charPos);
+  const lastSent = Math.max(
+    seg.lastIndexOf('. '), seg.lastIndexOf('! '),
+    seg.lastIndexOf('? '), seg.lastIndexOf('.\n'),
+  );
+  if (lastSent >= 0) return txt.slice(lookFrom + lastSent + 2).trimStart();
+
+  // fallback: última palavra antes da posição estimada
+  const lastSpace = txt.lastIndexOf(' ', charPos);
+  return lastSpace > 0 ? txt.slice(lastSpace + 1) : txt.slice(charPos);
+}
+
 function onPercVelChange(slider) {
   document.getElementById('perc-vel-lbl').textContent = slider.value + '%';
   if (!S.percLastTxt) return;
   clearTimeout(S.percVelTimer);
-  S.percVelTimer = setTimeout(() => pronunciarPercTexto(S.percLastTxt), 400);
+  S.percVelTimer = setTimeout(() => {
+    const audio = document.getElementById('perc-audio');
+    const resto = _textoRestante(S.percLastTxt, audio);
+    if (resto === null) return;  // já terminou — não reiniciar
+    pronunciarPercTexto(resto);
+  }, 400);
 }
 
 function onPercVozChange() {
   if (!S.percLastTxt) return;
-  pronunciarPercTexto(S.percLastTxt);
+  const audio = document.getElementById('perc-audio');
+  const resto = _textoRestante(S.percLastTxt, audio);
+  if (resto === null) return;
+  pronunciarPercTexto(resto);
 }
 
 function pronunciarPercTexto(forceTxt) {
