@@ -35,6 +35,7 @@ CLI:
 """
 
 import re
+import sys
 import unicodedata
 import subprocess
 import signal
@@ -43,9 +44,26 @@ import tempfile
 import shutil
 from pathlib import Path
 
+def _find_tool(name: str, *extra_hints) -> str:
+    """Procura executável no PATH, junto ao Python actual e em caminhos adicionais."""
+    found = shutil.which(name)
+    if found:
+        return found
+    # junto ao Python do processo (venv do gunicorn)
+    venv_bin = Path(sys.executable).parent / name
+    if venv_bin.exists():
+        return str(venv_bin)
+    for hint in extra_hints:
+        p = Path(hint)
+        if p.exists():
+            return str(p)
+    return name  # devolve o nome e deixa o SO tentar
+
 # caminhos dos motores TTS
-_EDGE_TTS  = str(Path.home() / ".local/share/pipx/venvs/pip/bin/edge-tts")
-_PIPER     = str(Path.home() / ".local/bin/piper")
+_EDGE_TTS  = _find_tool("edge-tts",
+                         Path.home() / ".local/share/pipx/venvs/pip/bin/edge-tts",
+                         Path.home() / ".local/bin/edge-tts")
+_PIPER     = _find_tool("piper", Path.home() / ".local/bin/piper")
 _PIPER_DIR = Path.home() / ".local/share/piper"
 _FFPLAY    = shutil.which("ffplay")
 _ESPEAK    = shutil.which("espeak-ng")

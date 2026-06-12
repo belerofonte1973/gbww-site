@@ -512,7 +512,9 @@ def api_pronunciar():
         fmt = _pron.pronunciar(texto, voz=voz, variante=variante,
                                velocidade=velocidade, saida=str(tmp_path))
         if not tmp_path.exists() or tmp_path.stat().st_size == 0:
-            return jsonify({'erro': 'Falha ao gerar áudio'}), 500
+            import shutil as _sh, sys as _sys
+            edge = _sh.which('edge-tts') or str(Path(_sys.executable).parent / 'edge-tts')
+            return jsonify({'erro': f'Falha ao gerar áudio (edge-tts: {edge})'}), 500
         mime = 'audio/wav' if fmt == 'wav' else 'audio/mpeg'
         ext  = 'wav' if fmt == 'wav' else 'mp3'
         return send_file(tmp_path, mimetype=mime,
