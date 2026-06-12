@@ -1705,8 +1705,9 @@ async function readSSEStream(body, handlers) {
   const reader  = body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
+  let finished = false;
 
-  while (true) {
+  while (!finished) {
     const {done, value} = await reader.read();
     if (done) break;
     buf += decoder.decode(value, {stream: true});
@@ -1722,9 +1723,11 @@ async function readSSEStream(body, handlers) {
       try {
         const data = JSON.parse(dataStr);
         handlers[eventType]?.(data);
+        if (eventType === 'done') { finished = true; break; }
       } catch { /* ignore */ }
     }
   }
+  reader.cancel();
 }
 
 // ── init ──────────────────────────────────────────────────────────────────────
