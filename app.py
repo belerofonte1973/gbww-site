@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from flask import Flask, render_template, request, g, abort, jsonify, send_file, Response, stream_with_context
 
+from nomes_pt import traduzir_catalogo, traduzir_autor
+
 _SETTINGS_FILE = Path(__file__).parent / "config" / "settings.json"
 
 def _ler_settings() -> dict:
@@ -63,11 +65,19 @@ except Exception:
     def claude_guardar_chave(_): pass
 
 try:
-    from ollama_lat import traduzir_stream as _ollama_stream, comentario as _ollama_comentario, listar_modelos as _ollama_modelos
-    _OLLAMA_OK = True
+    from fugu_lat import (traduzir_stream as _fugu_stream,
+                          obter_chave as fugu_obter_chave,
+                          guardar_chave as fugu_guardar_chave,
+                          MODELOS_FUGU, MODELO_DEFAULT as FUGU_DEFAULT)
+    _FUGU_OK = True
 except Exception:
-    _OLLAMA_OK = False
-    def _ollama_modelos(): return []
+    _FUGU_OK = False
+    MODELOS_FUGU = []
+    FUGU_DEFAULT = 'fugu'
+    def _fugu_stream(t, l, m, k): return iter([])
+    def fugu_obter_chave(): return ''
+    def fugu_guardar_chave(_): pass
+
 
 try:
     from busca_latina import build_pattern, read_latin_lib, read_perseus_xml, label_ll, label_perseus, first_line_title, LATIN_LIB, PERSEUS
@@ -232,8 +242,9 @@ def busca():
         claude_ok=_CLAUDE_OK,
         claude_key_set=bool(claude_obter_chave()) if _CLAUDE_OK else False,
         claude_models=MODELOS_CLAUDE,
-        ollama_ok=_OLLAMA_OK,
-        ollama_models=_ollama_modelos() if _OLLAMA_OK else [],
+        fugu_ok=_FUGU_OK,
+        fugu_key_set=bool(fugu_obter_chave()) if _FUGU_OK else False,
+        fugu_models=MODELOS_FUGU,
         trad_ok=_TRAD_OK,
     )
 
@@ -266,6 +277,7 @@ def api_buscar():
                 yield sse('status', {'msg': f'Latin Library: {path.name}…'})
                 lines  = read_latin_lib(path)
                 author, work = label_ll(path)
+                author = traduzir_autor(author)
                 title = first_line_title(path)
                 if title and title.lower() not in work.lower():
                     work = f'{work} [{title[:50]}]'
@@ -286,6 +298,7 @@ def api_buscar():
                 yield sse('status', {'msg': f'Perseus: {path.name}…'})
                 lines  = read_perseus_xml(path)
                 author, work = label_perseus(path)
+                author = traduzir_autor(author)
                 for i, line in enumerate(lines):
                     if pattern.search(line):
                         s = max(0, i - ctx); e = min(len(lines), i + ctx + 1)
@@ -326,7 +339,7 @@ def api_buscar():
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
-# ── tradução (Gemini + Ollama) — SSE ─────────────────────────────────────────
+# ── tradução — SSE ───────────────────────────────────────────────────────────
 
 @app.route('/api/traduzir', methods=['POST'])
 def api_traduzir():
@@ -340,17 +353,7 @@ def api_traduzir():
         if not texto:
             yield sse('erro', {'msg': 'Texto vazio'}); return
 
-        if motor in ('ollama', 'comentario'):
-            if not _OLLAMA_OK:
-                yield sse('erro', {'msg': 'Ollama não disponível'}); return
-            fn = _ollama_comentario if motor == 'comentario' else _ollama_stream
-            try:
-                for frag in fn(texto, lingua, modelo):
-                    yield sse('chunk', {'text': frag})
-            except Exception as ex:
-                yield sse('erro', {'msg': str(ex)})
-
-        elif motor == 'claude':
+        if motor == 'claude':
             if not _CLAUDE_OK:
                 yield sse('erro', {'msg': 'claude_lat.py não disponível'}); return
             chave = claude_obter_chave()
@@ -362,7 +365,19 @@ def api_traduzir():
             except Exception as ex:
                 yield sse('erro', {'msg': str(ex)})
 
-        else:  # gemini (default)
+        elif motor == 'fugu':
+            if not _FUGU_OK:
+                yield sse('erro', {'msg': 'fugu_lat.py não disponível'}); return
+            chave = fugu_obter_chave()
+            if not chave:
+                yield sse('erro', {'msg': 'Chave Fugu não configurada — instale o codex-fugu ou clique em 🔑'}); return
+            try:
+                for frag in _fugu_stream(texto, lingua, modelo or FUGU_DEFAULT, chave):
+                    yield sse('chunk', {'text': frag})
+            except Exception as ex:
+                yield sse('erro', {'msg': str(ex)})
+
+        elif motor == 'gemini':
             if not _GEMINI_OK:
                 yield sse('erro', {'msg': 'Gemini não disponível'}); return
             chave = gemini_obter_chave()
@@ -376,6 +391,9 @@ def api_traduzir():
                         yield sse('chunk', {'text': frag})
             except Exception as ex:
                 yield sse('erro', {'msg': str(ex)})
+
+        else:
+            yield sse('erro', {'msg': f'Motor desconhecido: {motor}'}); return
 
         yield sse('done', {})
 
@@ -393,6 +411,20 @@ def api_claude_chave():
         return jsonify({'ok': False, 'msg': 'Chave vazia'})
     try:
         _salvar_setting('claude_api_key', chave)
+        return jsonify({'ok': True})
+    except Exception as exc:
+        return jsonify({'ok': False, 'msg': str(exc)})
+
+
+# ── Fugu chave ────────────────────────────────────────────────────────────────
+
+@app.route('/api/fugu_chave', methods=['POST'])
+def api_fugu_chave():
+    chave = ((request.get_json(force=True, silent=True) or {}).get('chave') or '').strip()
+    if not chave:
+        return jsonify({'ok': False, 'msg': 'Chave vazia'})
+    try:
+        fugu_guardar_chave(chave)
         return jsonify({'ok': True})
     except Exception as exc:
         return jsonify({'ok': False, 'msg': str(exc)})
@@ -545,13 +577,6 @@ def api_gemini_chave():
         return jsonify({'ok': False, 'msg': str(exc)})
 
 
-# ── Ollama modelos ────────────────────────────────────────────────────────────
-
-@app.route('/api/modelos_ollama')
-def api_modelos_ollama():
-    return jsonify(_ollama_modelos() if _OLLAMA_OK else [])
-
-
 # ── Traduções guardadas ───────────────────────────────────────────────────────
 
 @app.route('/api/traducoes', methods=['POST'])
@@ -632,7 +657,7 @@ def api_perseus_catalogo():
     lingua = request.args.get('lingua', 'grc')
     forcar = request.args.get('forcar', '0') == '1'
     try:
-        return jsonify(_papi.obter_catalogo(lingua, forcar=forcar))
+        return jsonify(traduzir_catalogo(_papi.obter_catalogo(lingua, forcar=forcar)))
     except Exception as ex:
         return jsonify({'erro': str(ex)}), 500
 

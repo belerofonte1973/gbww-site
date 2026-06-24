@@ -20,6 +20,7 @@ const S = {
   percVozes:    [],
   percPronCtrl: null,
   percLastTxt:  '',
+  percBlockTxt: '',
   percVelTimer: null,
 };
 
@@ -206,15 +207,13 @@ async function startTranslation(motor) {
     return;
   }
   const lingua = document.getElementById('sel-lingua').value;
-  const modelo = motor === 'gemini'
-    ? (document.getElementById('sel-gemini-modelo')?.value || '')
-    : (document.getElementById('sel-ollama-modelo')?.value || '');
+  const modelo = document.getElementById('sel-gemini-modelo')?.value || '';
 
   if (S.transCtrl) S.transCtrl.abort();
   S.transCtrl = new AbortController();
 
   const out   = document.getElementById('trans-output');
-  const label = motor === 'gemini' ? '🌟 Gemini' : motor === 'comentario' ? '📖 Comentário' : '🤖 Ollama';
+  const label = motor === 'gemini' ? '🌟 Gemini' : motor === 'claude' ? '🔷 Claude' : '📖 Comentário';
   out.textContent = `${label}…\n\n`;
 
   try {
@@ -369,24 +368,33 @@ function _textoRestante(txt, audio) {
   return lastSpace > 0 ? txt.slice(lastSpace + 1) : txt.slice(charPos);
 }
 
+function _percReiniciar(txtAtual, audio) {
+  // Se o bloco terminou → recomeça do texto completo.
+  // Se ainda está a tocar → retoma da posição estimada.
+  const ended = !audio || !audio.duration || isNaN(audio.duration)
+    || audio.ended || audio.currentTime / audio.duration >= 0.97;
+  if (ended) {
+    pronunciarPercTexto(S.percBlockTxt || txtAtual);
+    return;
+  }
+  const resto = _textoRestante(txtAtual, audio);
+  pronunciarPercTexto(resto ?? (S.percBlockTxt || txtAtual));
+}
+
 function onPercVelChange(slider) {
   document.getElementById('perc-vel-lbl').textContent = slider.value + '%';
   if (!S.percLastTxt) return;
   clearTimeout(S.percVelTimer);
   S.percVelTimer = setTimeout(() => {
     const audio = document.getElementById('perc-audio');
-    const resto = _textoRestante(S.percLastTxt, audio);
-    if (resto === null) return;  // já terminou — não reiniciar
-    pronunciarPercTexto(resto);
+    _percReiniciar(S.percLastTxt, audio);
   }, 400);
 }
 
 function onPercVozChange() {
   if (!S.percLastTxt) return;
   const audio = document.getElementById('perc-audio');
-  const resto = _textoRestante(S.percLastTxt, audio);
-  if (resto === null) return;
-  pronunciarPercTexto(resto);
+  _percReiniciar(S.percLastTxt, audio);
 }
 
 function pronunciarPercTexto(forceTxt) {
@@ -394,6 +402,10 @@ function pronunciarPercTexto(forceTxt) {
   const txt = forceTxt || sel || document.getElementById('perc-texto')?.textContent.trim();
   if (!txt) return;
   S.percLastTxt = txt;
+  if (!forceTxt) {
+    // texto completo do painel (para reinício após fim de bloco)
+    S.percBlockTxt = document.getElementById('perc-texto')?.textContent.trim() || txt;
+  }
   const voz      = document.getElementById('perc-voz')?.value      || 'it-IT-DiegoNeural';
   const variante = document.getElementById('perc-variante')?.value  || 'classico';
   const vel      = parseInt(document.getElementById('perc-vel')?.value || '0', 10);
@@ -500,6 +512,33 @@ document.getElementById('claude-key-input')?.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeClaudeKeyDialog();
 });
 
+// ── Fugu key dialog ───────────────────────────────────────────────────────────
+
+function showFuguKeyDialog() {
+  document.getElementById('fugu-key-input').value = '';
+  document.getElementById('fugu-dialog').style.display = 'flex';
+  document.getElementById('fugu-key-input').focus();
+}
+function closeFuguKeyDialog() {
+  document.getElementById('fugu-dialog').style.display = 'none';
+}
+async function saveFuguKey() {
+  const chave = document.getElementById('fugu-key-input').value.trim();
+  if (!chave) return;
+  const resp = await fetch('/api/fugu_chave', {
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify({chave}),
+  });
+  const d = await resp.json();
+  setStatus(d.ok ? '✓ Chave Fugu guardada.' : `⚠ ${d.msg}`);
+  closeFuguKeyDialog();
+}
+document.getElementById('fugu-key-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveFuguKey();
+  if (e.key === 'Escape') closeFuguKeyDialog();
+});
+
 // ── Translation motor selector ────────────────────────────────────────────────
 
 function onPercMotorChange() {
@@ -507,8 +546,8 @@ function onPercMotorChange() {
   const modelSel = document.getElementById('perc-modelo');
   const keyBtn   = document.getElementById('btn-trans-key');
 
-  // mostra selector de modelo para Gemini / Claude / Ollama
-  const hasModelos = motor === 'gemini' || motor === 'claude' || motor === 'ollama';
+  // mostra selector de modelo para Gemini / Claude / Fugu
+  const hasModelos = motor === 'gemini' || motor === 'claude' || motor === 'fugu';
   if (modelSel) {
     modelSel.style.display = hasModelos ? '' : 'none';
     // filtra opções pelo motor
@@ -520,14 +559,15 @@ function onPercMotorChange() {
     if (first) modelSel.value = first.value;
   }
 
-  // botão de chave: só para Gemini e Claude
-  if (keyBtn) keyBtn.style.display = (motor === 'gemini' || motor === 'claude') ? '' : 'none';
+  // botão de chave: para Gemini, Claude e Fugu
+  if (keyBtn) keyBtn.style.display = (motor === 'gemini' || motor === 'claude' || motor === 'fugu') ? '' : 'none';
 }
 
 function showTransKeyDialog() {
   const motor = document.getElementById('perc-motor')?.value || '';
   if (motor === 'gemini') showGeminiKeyDialog();
   else if (motor === 'claude') showClaudeKeyDialog();
+  else if (motor === 'fugu') showFuguKeyDialog();
 }
 
 // ── Perseus / Textos Online ───────────────────────────────────────────────────
@@ -713,8 +753,8 @@ async function percTraduzir() {
     return;
   }
 
-  // ── motores SSE (gemini / claude / ollama) ────────────────────────────────
-  const labels = { gemini: '✨ Gemini', claude: '🔷 Claude', ollama: '🤖 Ollama' };
+  // ── motores SSE (gemini / claude) ────────────────────────────────────────
+  const labels = { gemini: '✨ Gemini', claude: '🔷 Claude' };
   const outEl  = _getOrCreateTransOutput();
   outEl.className   = 'perc-trans-output';
   outEl.style.display = 'block';

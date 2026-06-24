@@ -87,10 +87,10 @@
           <select id="perc-motor" onchange="onPercMotorChange()">
             {% if gemini_ok %}<option value="gemini">✨ Gemini</option>{% endif %}
             {% if claude_ok %}<option value="claude">🔷 Claude</option>{% endif %}
-            {% if ollama_ok %}<option value="ollama">🤖 Ollama (local)</option>{% endif %}
+            {% if fugu_ok %}<option value="fugu">🐡 Fugu</option>{% endif %}
             <option value="interlinear">📖 Interlinear (offline)</option>
           </select>
-          <!-- selector de modelo (Gemini / Claude) -->
+          <!-- selector de modelo (Gemini / Claude / Fugu) -->
           <select id="perc-modelo" style="display:none">
             {% for mid, mlabel in gemini_models %}
             <option value="{{ mid }}" data-motor="gemini">{{ mlabel }}</option>
@@ -98,8 +98,8 @@
             {% for mid, mlabel in claude_models %}
             <option value="{{ mid }}" data-motor="claude">{{ mlabel }}</option>
             {% endfor %}
-            {% for m in ollama_models %}
-            <option value="{{ m }}" data-motor="ollama">{{ m }}</option>
+            {% for mid, mlabel in fugu_models %}
+            <option value="{{ mid }}" data-motor="fugu">{{ mlabel }}</option>
             {% endfor %}
           </select>
           <button id="btn-trans-key" onclick="showTransKeyDialog()" title="Configurar chave API" style="display:none">🔑</button>
@@ -377,6 +377,22 @@
     </div>
   </div>
 </div>
+
+<!-- ── diálogo chave Fugu ──────────────────────────────────────────────────── -->
+{% if fugu_ok %}
+<div id="fugu-dialog" class="dialog-overlay" style="display:none">
+  <div class="dialog-box">
+    <h3>🐡 Chave API Sakana Fugu</h3>
+    <p>Obtenha em <a href="https://console.sakana.ai" target="_blank">console.sakana.ai</a></p>
+    <input id="fugu-key-input" type="password" placeholder="fish_…" style="width:100%">
+    <p class="dialog-note">{% if fugu_key_set %}✓ Chave já configurada (via codex-fugu).{% else %}A chave é guardada localmente no servidor.{% endif %}</p>
+    <div class="dialog-btns">
+      <button onclick="saveFuguKey()">Guardar</button>
+      <button onclick="closeFuguKeyDialog()">Cancelar</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- ── diálogo chave API.Bible ───────────────────────────────────────────── -->
 {% if apibible_ok %}
