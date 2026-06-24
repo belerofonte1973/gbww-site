@@ -80,7 +80,7 @@ def fugu_planear(texto: str, lingua: str, chave: str) -> str:
         f"3. Instruções específicas para o tradutor (tom, equivalências de termos técnicos, etc.)\n\n"
         f"Texto:\n{texto}\n\n"
         f"Responde em português, de forma concisa (máx. 150 palavras).",
-        chave, max_tokens=512,
+        chave, max_tokens=1024,
     )
 
 
